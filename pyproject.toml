@@ -11,9 +11,11 @@ dependencies = []
 
 [project.scripts]
 ps5mirror = "ps5mirror.__main__:main"
+ps5chrome = "ps5chrome.__main__:main"
 
 [tool.setuptools]
-packages = ["ps5mirror"]
+packages = ["ps5mirror", "ps5chrome"]
 
 [tool.setuptools.package-data]
 ps5mirror = ["web/*.html"]
+ps5chrome = ["web/*.html"]
