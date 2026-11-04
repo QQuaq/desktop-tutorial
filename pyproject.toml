@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ps5mirror"
+version = "0.1.0"
+description = "PS5 ekran yansitma - PS Remote Play (chiaki-ng) icin masaustu baslatici"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+ps5mirror = "ps5mirror.__main__:main"
+
+[tool.setuptools]
+packages = ["ps5mirror"]
+
+[tool.setuptools.package-data]
+ps5mirror = ["web/*.html"]
