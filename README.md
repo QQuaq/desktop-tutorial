@@ -100,3 +100,35 @@ python -m unittest discover -s tests -v
 - Glint yalnizca 1080p60 ve 60 Hz ekran modunda calisir (payload'in kendi siniri).
 - Arayuz yalnizca `127.0.0.1` uzerinde dinler; `/api/send-elf` yalnizca `.elf` uzantili yerel dosyalari gonderir.
 - Uygulama Sony ile baglantili degildir.
+
+---
+
+# PS5 Chrome (uzak Chrome)
+
+PS5'te Chrome calistirmak mumkun degil (Chromium tam bir isletim sistemi, GPU yigini ve JIT ister;
+PS5 payload SDK'si bunlari sunmuyor). Bunun yerine **Chrome PC'de calisir, goruntusu PS5'in kendi
+tarayicisina akar**; tiklama, kaydirma ve yazma PC'deki Chrome'a gider. PS5'te ELF/jailbreak
+gerekmez, yalnizca PS5'in tarayicisi gerekir.
+
+```bat
+ps5chrome.bat --url https://www.google.com
+```
+
+Program bir adres yazdirir (`http://<PC-IP>:8080/?k=<anahtar>`). Bunu PS5'in tarayicisinda acin.
+Gereksinim: Python 3.9+ ve PC'de Chrome (veya Edge). Windows'ta Guvenlik Duvari ilk calistirmada
+izin ister; **ozel agda** izin verin.
+
+- Ust cubuk: geri/ileri/yenile, adres veya arama (bosluklu metin Google aramasi olur), "Yaz" kutusu
+  (sayfadaki secili kutuya metin gonderir; PS5'in ekran klavyesi acilir), Enter, silme, yukari/asagi.
+- Goruntu icindeki bir noktaya tiklamak PC'deki Chrome'da o noktaya tiklar.
+- Teknik: Chrome DevTools Protocol `Page.startScreencast` -> MJPEG (`multipart/x-mixed-replace`) -> `<img>`.
+  Girdiler `Input.dispatchMouseEvent`/`insertText` ile gider. Hicbir ucuncu parti paket gerekmez.
+
+**Guvenlik:** sunucu LAN'dan erisilebilir; her istek rastgele anahtari ister (anahtari paylasmayin).
+Yalnizca `http`/`https` adreslerine gidilir (`file:`, `javascript:`, `chrome:` vb. reddedilir). Chrome,
+gecici bir profille calisir (oturumlariniz/cerezleriniz PC'deki normal profilden ayridir). Uzaktan
+girdiginiz sifreler PC'deki Chrome'a aktarilir; anahtari bilen herkes o oturumu kullanabilir.
+
+**Sinirlar:** goruntu JPEG akisi (gecikme ~100-300 ms, 1280x720); ses/DRM'li video (Netflix vb.) yok;
+PS5 tarayicisinin MJPEG ve dokunmatik/imlec davranisi **gercek PS5'te denenmedi** (PC'de Chrome
+ile test edildi). PS5'in gizli tarayicisina nasil ulasilacagi konsolun yazilimina baglidir.

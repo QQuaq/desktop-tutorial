@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS5 Chrome</title>
+<style>
+  html, body { margin:0; background:#0b0f1a; color:#e6ebf5; font:20px/1.3 sans-serif; }
+  #bar { display:flex; gap:8px; padding:8px; background:#141b2d; align-items:center; flex-wrap:wrap; }
+  button { font-size:20px; padding:10px 16px; border:0; border-radius:8px; background:#2a3552; color:#fff; }
+  button.go { background:#2d7cff; }
+  input { font-size:20px; padding:10px 12px; border-radius:8px; border:1px solid #2a3552; background:#0e1424; color:#fff; }
+  #url { flex:1 1 360px; min-width:240px; }
+  #txt { flex:1 1 200px; min-width:160px; }
+  #wrap { text-align:center; }
+  #screen { width:100%; max-width:100%; display:block; background:#000; cursor:pointer; }
+  #msg { font-size:16px; color:#ff8a95; padding:2px 10px; min-height:20px; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="back">&#9664;</button>
+  <button id="fwd">&#9654;</button>
+  <button id="reload">&#8635;</button>
+  <input id="url" type="text" placeholder="adres veya arama">
+  <button id="go" class="go">Git</button>
+</div>
+<div id="bar2" class="bar" style="display:flex;gap:8px;padding:0 8px 8px;background:#141b2d;flex-wrap:wrap;align-items:center">
+  <input id="txt" type="text" placeholder="sayfadaki kutuya yazilacak metin">
+  <button id="send" class="go">Yaz</button>
+  <button id="enter">Enter</button>
+  <button id="bksp">&#9003;</button>
+  <button id="up">Yukari</button>
+  <button id="down">Asagi</button>
+</div>
+<div id="msg"></div>
+<div id="wrap"><img id="screen" alt="ekran"></div>
+<script>
+(function () {
+  var key = (location.search.match(/[?&]k=([^&]+)/) || [])[1] || "";
+  var W = 1280, H = 720;
+  function $(id) { return document.getElementById(id); }
+  function say(t) { $("msg").textContent = t || ""; }
+  function api(method, path, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open(method, path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + key);
+    if (body) x.setRequestHeader("Content-Type", "application/json");
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      var data = null;
+      try { data = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status >= 400) say((data && data.error) || ("hata " + x.status)); else say("");
+      if (cb) cb(data, x.status);
+    };
+    x.send(body ? JSON.stringify(body) : null);
+  }
+  function send(ev, cb) { api("POST", "/input", ev, cb); }
+
+  var img = $("screen");
+  function startStream() { img.src = "/stream?k=" + key + "&t=" + new Date().getTime(); }
+  img.onerror = function () { setTimeout(startStream, 1500); };
+  startStream();
+
+  img.onclick = function (e) {
+    var r = img.getBoundingClientRect();
+    send({ type: "click", x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height });
+  };
+  img.addEventListener("wheel", function (e) {
+    var r = img.getBoundingClientRect();
+    e.preventDefault();
+    send({ type: "wheel", x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height, dx: e.deltaX, dy: e.deltaY });
+  }, false);
+
+  $("back").onclick = function () { send({ type: "back" }); };
+  $("fwd").onclick = function () { send({ type: "forward" }); };
+  $("reload").onclick = function () { send({ type: "reload" }); };
+  function go() { send({ type: "go", url: $("url").value }, function (d) { if (d && d.url) $("url").value = d.url; }); }
+  $("go").onclick = go;
+  $("url").onkeydown = function (e) { if (e.keyCode === 13) go(); };
+  function sendText() { var t = $("txt").value; if (t) { send({ type: "text", text: t }); $("txt").value = ""; } }
+  $("send").onclick = sendText;
+  $("txt").onkeydown = function (e) { if (e.keyCode === 13) sendText(); };
+  $("enter").onclick = function () { send({ type: "key", key: "Enter" }); };
+  $("bksp").onclick = function () { send({ type: "key", key: "Backspace" }); };
+  $("up").onclick = function () { send({ type: "wheel", x: W / 2, y: H / 2, dx: 0, dy: -400 }); };
+  $("down").onclick = function () { send({ type: "wheel", x: W / 2, y: H / 2, dx: 0, dy: 400 }); };
+
+  function poll() {
+    api("GET", "/state", null, function (s) {
+      if (!s) return;
+      W = s.width || W; H = s.height || H;
+      if (s.title) document.title = s.title;
+      if (document.activeElement !== $("url") && s.url) $("url").value = s.url;
+    });
+  }
+  poll();
+  setInterval(poll, 2000);
+})();
+</script>
+</body>
+</html>
