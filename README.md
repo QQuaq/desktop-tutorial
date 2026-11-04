@@ -39,6 +39,11 @@ Tarayicinizda yerel arayuz (`http://127.0.0.1:8765`) acilir.
   baglayin; chiaki-ng'de 720p/30-60 FPS ile baslayip bant genisligine gore yukseltin.
   Wi-Fi'da gecikme ve kare atlamasi kablolu baglantidan daha yuksek olur.
 
+> **Onemli:** Remote Play kaydi icin PSN hesabi ve konsolda *Uzaktan Oynatma > Aygit Bagla*
+> kodu gerekir. PSN'e girilemeyen eski sistem yazilimlarinda bunun calisip calismayacagi
+> **dogrulanmadi**. Calismazsa PSN'den bagimsiz tek guvenilir yol HDMI yakalama kartidir
+> (bu prototipte kart modu yok).
+
 ## Ilk kurulum (bir kerelik)
 
 1. **chiaki-ng'yi acin**, `+` ile konsolu ekleyin: PS5'in IP adresi, PSN hesap kimliginiz
