@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import webbrowser
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import backends, config as cfgmod, discovery
+from . import backends, config as cfgmod, discovery, payload, session as sessmod
 
 WEB_DIR = Path(__file__).parent / "web"
 MAX_BODY = 64 * 1024
@@ -17,7 +18,7 @@ MAX_BODY = 64 * 1024
 class App:
     def __init__(self, config_path: Path | None = None) -> None:
         self.config_path = config_path
-        self.session = backends.Session()
+        self.session = sessmod.Session()
         self.lock = threading.Lock()
 
     def get_config(self) -> cfgmod.Config:
@@ -27,6 +28,7 @@ class App:
         cfg = self.get_config()
         return {
             "chiaki": backends.find_chiaki(cfg.chiaki_path),
+            "ffplay": shutil.which("ffplay"),
         }
 
 
@@ -77,6 +79,15 @@ def make_handler(app: App):
                 return self._send(200, (WEB_DIR / "index.html").read_bytes(), "text/html")
             if path == "/api/config":
                 return self._send(200, asdict(app.get_config()))
+            if path == "/api/payload-status":
+                cfg = app.get_config()
+                if not cfg.host:
+                    return self._send(400, {"errors": ["once PS5 IP adresini kaydedin"]})
+                try:
+                    return self._send(200, {"reachable": True,
+                                            "status": payload.get_status(cfg.host, cfg.payload_port)})
+                except payload.PayloadError as exc:
+                    return self._send(200, {"reachable": False, "error": str(exc)})
             if path == "/api/status":
                 st = app.session.status()
                 return self._send(200, {**asdict(st), "log": list(app.session.log)[-30:],
@@ -102,6 +113,15 @@ def make_handler(app: App):
                         raise cfgmod.ConfigError("gecersiz console")
                     found = discovery.discover(console, timeout=float(body.get("timeout", 2.0)))
                     return self._send(200, [asdict(f) for f in found])
+                if path == "/api/send-elf":
+                    body = self._json_body()
+                    cfg = app.get_config()
+                    cfg.require_valid()
+                    elf = str(body.get("path", "")).strip().strip('"')
+                    if not elf.lower().endswith(".elf"):
+                        raise cfgmod.ConfigError("yalnizca .elf dosyalari gonderilebilir")
+                    sent = payload.send_elf(cfg.host, elf, cfg.loader_port)
+                    return self._send(200, {"sent_bytes": sent})
                 if path == "/api/start":
                     with app.lock:
                         cmd = app.session.start(app.get_config())
@@ -111,7 +131,7 @@ def make_handler(app: App):
                     return self._send(200, {"stopped": True})
             except (cfgmod.ConfigError, TypeError) as exc:
                 return self._send(400, {"errors": [str(exc)]})
-            except backends.BackendError as exc:
+            except (backends.BackendError, payload.PayloadError) as exc:
                 return self._send(409, {"errors": [str(exc)]})
             self._send(404, {"error": "bulunamadi"})
 

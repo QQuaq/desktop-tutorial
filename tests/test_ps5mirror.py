@@ -9,8 +9,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 import socket
+import struct
+import sys
+import http.server
 
-from ps5mirror import backends, config, discovery, server, wakeup
+from ps5mirror import backends, config, discovery, payload, server, session, wakeup
 
 SAMPLE = (
     "HTTP/1.1 200 Ok\n"
@@ -251,7 +254,7 @@ class ServerTests(unittest.TestCase):
 
     def test_start_without_host_is_400_and_missing_chiaki_is_409(self):
         self.assertEqual(self.req("/api/start", {})[0], 400)
-        cfg = {"host": "10.0.0.2", "chiaki_path": "/yok/chiaki"}
+        cfg = {"mode": "remoteplay", "host": "10.0.0.2", "chiaki_path": "/yok/chiaki"}
         self.assertEqual(self.req("/api/config", cfg)[0], 200)
         code, body = self.req("/api/start", {})
         self.assertEqual(code, 409)
@@ -271,6 +274,251 @@ class ServerTests(unittest.TestCase):
 
     def test_discover_endpoint_rejects_bad_console(self):
         self.assertEqual(self.req("/api/discover", {"console": "Xbox"})[0], 400)
+
+    def test_payload_status_endpoint(self):
+        fake = FakePayload()
+        try:
+            self.assertEqual(self.req("/api/config", {"host": "127.0.0.1", "payload_port": fake.port})[0], 200)
+            code, body = self.req("/api/payload-status")
+            self.assertEqual((code, body["reachable"]), (200, True))
+        finally:
+            fake.close()
+        code, body = self.req("/api/payload-status")
+        self.assertFalse(body["reachable"])
+
+    def test_send_elf_endpoint(self):
+        loader = FakeLoader()
+        elf = Path(self.tmp.name) / "a.elf"
+        elf.write_bytes(b"\x7fELFabc")
+        self.req("/api/config", {"host": "127.0.0.1", "loader_port": loader.port})
+        code, body = self.req("/api/send-elf", {"path": str(elf)})
+        loader.thread.join(3)
+        self.assertEqual((code, body["sent_bytes"]), (200, 7))
+        self.assertEqual(loader.received, b"\x7fELFabc")
+
+    def test_send_elf_endpoint_refuses_other_files(self):
+        self.req("/api/config", {"host": "127.0.0.1"})
+        code, _ = self.req("/api/send-elf", {"path": "/etc/passwd"})
+        self.assertEqual(code, 400)
+
+    def test_invalid_ports_and_mode(self):
+        self.assertEqual(self.req("/api/config", {"host": "1.2.3.4", "payload_port": 0})[0], 400)
+        self.assertEqual(self.req("/api/config", {"host": "1.2.3.4", "mode": "x"})[0], 400)
+
+
+CONFIG_JSON = {"platform": "PS5", "width": 1920, "height": 1080, "fps": 60,
+               "audio": {"codec": "pcm_f32le", "channels": 2, "rate": 48000, "bits": 32}}
+FRAMES = [b"\x00\x00\x00\x01frame-%d" % i for i in range(5)]
+
+
+def frame_bytes(data: bytes, pts: int) -> bytes:
+    return struct.pack(">II", len(data), pts) + data
+
+
+class FakePayload:
+    """Glint HTTP API'sinin kucuk bir taklidi."""
+
+    def __init__(self, busy=False, bad_length=False):
+        outer = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *a):
+                pass
+
+            def _json(self, obj):
+                body = json.dumps(obj).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                if self.path == "/config.json":
+                    return self._json(CONFIG_JSON)
+                if self.path == "/status.json":
+                    return self._json({"version": "1.3", "width": 1920, "height": 1080, "fps": 60.0, "viewers": 0})
+                if self.path in ("/frames", "/audio"):
+                    if busy:
+                        self.send_response(409)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
+                    self.send_response(200)
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    if bad_length:
+                        self.wfile.write(struct.pack(">II", 0x7FFFFFFF, 0))
+                        return
+                    items = FRAMES if self.path == "/frames" else [b"\x00" * 16]
+                    for i, f in enumerate(items):
+                        self.wfile.write(frame_bytes(f, i * 1500))
+                    self.wfile.flush()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Length", "11")
+                self.end_headers()
+                self.wfile.write(b"Unavailable")
+
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+class FakeLoader:
+    def __init__(self):
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(1)
+        self.port = self.sock.getsockname()[1]
+        self.received = b""
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        conn, _ = self.sock.accept()
+        with conn:
+            while True:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    break
+                self.received += chunk
+        self.sock.close()
+
+
+class PayloadTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.sink = Path(self.tmp.name) / "sink.bin"
+        script = Path(self.tmp.name) / "player.py"
+        script.write_text(
+            "import sys, os\n"
+            "out = open(sys.argv[1], 'ab', buffering=0)\n"
+            "while True:\n"
+            "    chunk = os.read(0, 65536)\n"
+            "    if not chunk:\n"
+            "        break\n"
+            "    out.write(chunk)\n")
+        self.player = [sys.executable, str(script), str(self.sink)]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def cfg(self, port, **kw):
+        return config.Config(host="127.0.0.1", payload_port=port,
+                             extra={"player_command": self.player}, **kw)
+
+    def wait_done(self, s, timeout=5):
+        end = time.time() + timeout
+        while time.time() < end and s.status().running:
+            time.sleep(0.05)
+        time.sleep(0.2)
+
+    def test_send_elf(self):
+        loader = FakeLoader()
+        elf = Path(self.tmp.name) / "p.elf"
+        elf.write_bytes(b"\x7fELF" + b"\x01" * 100000)
+        sent = payload.send_elf("127.0.0.1", str(elf), loader.port)
+        loader.thread.join(3)
+        self.assertEqual(sent, 100004)
+        self.assertEqual(loader.received, elf.read_bytes())
+
+    def test_send_elf_rejects_non_elf_and_missing_loader(self):
+        bad = Path(self.tmp.name) / "x.elf"
+        bad.write_bytes(b"MZ....")
+        with self.assertRaises(payload.PayloadError):
+            payload.send_elf("127.0.0.1", str(bad), 1)
+        good = Path(self.tmp.name) / "g.elf"
+        good.write_bytes(b"\x7fELFxx")
+        with self.assertRaises(payload.PayloadError):
+            payload.send_elf("127.0.0.1", str(good), 1)
+        with self.assertRaises(payload.PayloadError):
+            payload.send_elf("127.0.0.1", str(Path(self.tmp.name) / "yok.elf"), 1)
+
+    def test_status_and_config(self):
+        fake = FakePayload()
+        try:
+            self.assertEqual(payload.get_config("127.0.0.1", fake.port)["fps"], 60)
+            self.assertEqual(payload.get_status("127.0.0.1", fake.port)["version"], "1.3")
+        finally:
+            fake.close()
+        with self.assertRaises(payload.PayloadError):
+            payload.get_status("127.0.0.1", fake.port)
+
+    def test_iter_frames_framing(self):
+        fake = FakePayload()
+        try:
+            conn, resp = payload.open_stream("127.0.0.1", fake.port, "/frames")
+            frames = list(self._take(resp))
+            conn.close()
+        finally:
+            fake.close()
+        self.assertEqual([d for _, d in frames], FRAMES)
+        self.assertEqual([p for p, _ in frames], [i * 1500 for i in range(5)])
+
+    @staticmethod
+    def _take(resp):
+        try:
+            yield from payload.iter_frames(resp, payload.MAX_VIDEO_FRAME)
+        except EOFError:
+            return
+
+    def test_oversized_frame_rejected(self):
+        fake = FakePayload(bad_length=True)
+        try:
+            conn, resp = payload.open_stream("127.0.0.1", fake.port, "/frames")
+            with self.assertRaises(payload.PayloadError):
+                next(payload.iter_frames(resp, payload.MAX_VIDEO_FRAME))
+            conn.close()
+        finally:
+            fake.close()
+
+    def test_busy_viewer_message(self):
+        fake = FakePayload(busy=True)
+        try:
+            with self.assertRaises(payload.PayloadError) as ctx:
+                payload.open_stream("127.0.0.1", fake.port, "/frames")
+            self.assertIn("izleyici", str(ctx.exception))
+        finally:
+            fake.close()
+
+    def test_session_pipes_raw_h264_to_player(self):
+        fake = FakePayload()
+        try:
+            s = payload.PayloadSession()
+            cmd = s.start(self.cfg(fake.port))
+            self.assertIn("/frames", cmd[0])
+            self.wait_done(s)
+            self.assertEqual(self.sink.read_bytes(), b"".join(FRAMES))
+            self.assertFalse(s.status().running)
+        finally:
+            fake.close()
+
+    def test_session_unreachable_payload_gives_hint(self):
+        from ps5mirror.backends import BackendError
+        fake = FakePayload()
+        port = fake.port
+        fake.close()
+        with self.assertRaises(BackendError) as ctx:
+            payload.PayloadSession().start(self.cfg(port))
+        self.assertIn("send-elf", str(ctx.exception))
+
+    def test_facade_selects_by_mode(self):
+        fake = FakePayload()
+        try:
+            s = session.Session()
+            s.start(self.cfg(fake.port))
+            self.wait_done(s)
+            self.assertEqual(self.sink.read_bytes(), b"".join(FRAMES))
+        finally:
+            fake.close()
 
 
 if __name__ == "__main__":

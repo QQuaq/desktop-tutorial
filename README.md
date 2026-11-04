@@ -1,22 +1,41 @@
 # PS5 Mirror (ilk prototip, Windows odakli)
 
-PS5'in goruntusunu ve sesini Windows bilgisayarda gosterir. Goruntu/ses akisi
-**PS Remote Play protokolu** ile [chiaki-ng](https://github.com/streetpea/chiaki-ng)
-tarafindan saglanir; bu proje onun uzerine ayar, konsol bulma ve tek tikla
-baslatma katmani ekler. HDMI yakalama karti **gerekmez**.
+PS5'in goruntusunu bilgisayarda gosterir. Iki mod vardir:
 
-> Durum: prototip. Arayuz, ayarlar, konsol kesfi paketleri ve surec yonetimi
-> otomatik testlidir; **gercek bir PS5 ile akis henuz test edilmemistir** (bkz. "Bilinenler").
+1. **payload (varsayilan):** Jailbreak'li PS5'e bir **ELF payload** gonderilir; payload konsolun
+   kendi donanim H.264 kodlayicisindan goruntuyu alip **HTTP portundan (7231)** sunar. Bu program
+   ELF'i konsola gonderir, akisi cozer ve `ffplay` penceresinde gosterir. **PSN hesabi ve HDMI
+   yakalama karti gerekmez.**
+2. **remoteplay:** PS Remote Play protokolu ([chiaki-ng](https://github.com/streetpea/chiaki-ng)
+   uzerinden). PSN girisi gerektirir; PSN'e girilemeyen konsolda calismaz.
+
+> Durum: prototip. Bilgisayar tarafi (ELF gonderme, HTTP akisini cozme, oynatici, arayuz,
+> ayarlar) otomatik testli ve sahte payload ile uctan uca denendi. **Gercek bir PS5 ile hicbir
+> sey test edilmedi.**
+
+## PS5 tarafi: payload nereden gelir?
+
+Bu repo PS5 payload'i yazmaz/icermez; var olan acik kaynak calismalar kullanilir:
+
+| Ne | Not |
+|---|---|
+| [ps5-payload-dev/sdk](https://github.com/ps5-payload-dev/sdk) | Acik kaynak (GPLv3) PS5 payload SDK'si (clang/LLVM 18 ile derleme); ELF'ler ELF loader'a 9021 portundan gonderilir |
+| [MiladRTX/Glint](https://github.com/MiladRTX/Glint) | Hazir payload (`Glint-1.3-ps5.elf`) + Windows uygulamasi (`Glint.exe`). HTTP API `7231` portunda, H.264 `/frames`, ses `/audio`. README'sine gore **firmware 13.60'ta test edilmis**, yalnizca 60 Hz modunda calisir. **Bu programin payload modu bu API'ye gore yazildi.** |
+| [Darkatek7/ProsperoSunshine](https://github.com/Darkatek7/ProsperoSunshine) | Moonlight uyumlu akis sunucusu (ses, goruntu, kontrolcu); 13.00 test edilmis, 13.60 icin kullanici raporlari var |
+
+Hizli yol istiyorsaniz Glint'in kendi `Glint.exe`'si bu programdan daha olgundur (GPU cozme, ses
+senkronu, kayit). Bu programin farki: sade, bagimliliksiz Python + ffplay, ayni API'yi kullanir.
+
+**Guvenlik:** Konsola gonderdiginiz ELF, konsolda yuksek yetkiyle calisir. Yalnizca guvendiginiz
+kaynaktan, surum sayfasindaki SHA256 ile dogrulayarak kullanin. Konsolu jailbreak'lemek bu projenin
+konusu degildir; bu repo jailbreak yontemi, exploit veya korsan icerikle ilgili bir sey icermez.
 
 ## Gereksinimler (Windows 10/11)
 
-1. **Python 3.9+** — `winget install Python.Python.3.12` (baska paket gerekmez)
-2. **chiaki-ng** — [GitHub Releases](https://github.com/streetpea/chiaki-ng/releases)
-   sayfasindan Windows surumunu indirip kurun/acin.
-3. PS5 ve bilgisayar **ayni yerel agda** (Wi-Fi 5 GHz veya tercihen kablolu), PS5'te
-   *Ayarlar > Sistem > Uzaktan Oynatma > Uzaktan Oynatmayi Etkinlestir* acik.
-   Dinlenme modundan uyandirmak istiyorsaniz *Guc Tasarrufu > Ozellikler > Dinlenme
-   Modunda Kullanilabilir Ozellikler* altinda ag/uyanma seceneklerini acin.
+1. **Python 3.9+** — `winget install Python.Python.3.12`
+2. **FFmpeg (ffplay)** — `winget install Gyan.FFmpeg` (yeni bir terminal acin)
+3. PS5'te ELF loader acik (varsayilan port 9021) ve payload ELF dosyasi bilgisayarda
+4. PS5 ve PC ayni aginda (tercihen kablolu; Wi-Fi'da daha fazla gecikme/titreme olur)
 
 ## Tek komutla calistirma
 
@@ -26,46 +45,44 @@ Klasorde `ps5mirror.bat` dosyasina cift tiklayin ya da PowerShell/CMD'de:
 ps5mirror.bat
 ```
 
-(Python varsa `py -3 -m ps5mirror` de ayni isi yapar; bagimlilik yoktur.)
-Tarayicinizda yerel arayuz (`http://127.0.0.1:8765`) acilir.
+Tarayicida yerel arayuz (`http://127.0.0.1:8765`) acilir: PS5 IP adresini girin, ELF yolunu
+yazip **ELF'i gonder**'e basin, konsolda payload'in "ready" demesini bekleyin, **Baslat**.
 
-## Kullanim senaryosu: yalnizca izleme (Wi-Fi, kontrolcu PC'ye bagli degil)
-
-- Sadece izleme icin kontrolcu gerekmez; DualSense PS5'e bagli kalir, PC'ye baglanmaz.
-- Remote Play resmi ozelliktir: PS5'in **jailbreak/ozel yazilim durumuna bagli degildir** ve
-  jailbreak gerektirmez. Bu proje jailbreak ile ilgili bir sey yapmaz veya desteklemez.
-  Remote Play kaydi icin PS5'te PSN hesabiyla giris yapilmis olmasi gerekir.
-- Wi-Fi ipuclari: PC ve PS5'i ayni 5 GHz agina alin, mumkunse PC'yi (veya PS5'i) kabloyla
-  baglayin; chiaki-ng'de 720p/30-60 FPS ile baslayip bant genisligine gore yukseltin.
-  Wi-Fi'da gecikme ve kare atlamasi kablolu baglantidan daha yuksek olur.
-
-> **Onemli:** Remote Play kaydi icin PSN hesabi ve konsolda *Uzaktan Oynatma > Aygit Bagla*
-> kodu gerekir. PSN'e girilemeyen eski sistem yazilimlarinda bunun calisip calismayacagi
-> **dogrulanmadi**. Calismazsa PSN'den bagimsiz tek guvenilir yol HDMI yakalama kartidir
-> (bu prototipte kart modu yok).
-
-## Ilk kurulum (bir kerelik)
-
-1. **chiaki-ng'yi acin**, `+` ile konsolu ekleyin: PS5'in IP adresi, PSN hesap kimliginiz
-   (Account ID) ve PS5'te *Uzaktan Oynatma > Aygit Bagla* ekranindaki 8 haneli kod.
-   Konsola verdiginiz adi not edin (ornek: `PS5`).
-2. `ps5mirror.bat` ile arayuzu acin, **Agda ara** ile PS5'i bulun (ya da IP'yi yazin),
-   gerekirse *chiaki-ng profil adi* alanina chiaki-ng'deki kayit adini girin,
-   **Ayarlari kaydet** > **Baslat**.
-
-Ayar dosyasi: `%APPDATA%\ps5mirror\config.json`.
-
-## Komut satiri
+Komut satirindan:
 
 ```bat
-ps5mirror.bat check          :: ayar + chiaki-ng bulundu mu?
-ps5mirror.bat discover       :: agdaki PS5'leri listele
-ps5mirror.bat start          :: kayitli ayarlarla baslat
+ps5mirror.bat send-elf C:\indirilenler\Glint-1.3-ps5.elf --host 192.168.1.50
+ps5mirror.bat check
+ps5mirror.bat start
+```
+
+Ayar dosyasi: `%APPDATA%\ps5mirror\config.json` (`host`, `payload_port`, `loader_port`, `audio`).
+Ses (`audio: true`) deneysel: ayri bir ffplay'e verilir, goruntuyle senkron degildir.
+
+## PS5 olmadan deneme
+
+```bash
+python tools/fake_payload.py          # ffmpeg ile test deseni akitan sahte payload (127.0.0.1:7231)
+# arayuzde host=127.0.0.1 secip Baslat
+```
+
+---
+
+## Remote Play modu (PSN gerektirir)
+
+Ayarlarda `mode: "remoteplay"` secilir (arayuzde Mod listesi). Remote Play kaydi icin PSN hesabi ve
+konsolda *Uzaktan Oynatma > Aygit Bagla* kodu gerekir; PSN'e girilemeyen eski sistem yazilimlarinda
+calisip calismayacagi **dogrulanmadi**. Bu durumda payload modunu kullanin.
+
+1. **chiaki-ng** kurun ([Releases](https://github.com/streetpea/chiaki-ng/releases)) ve acip `+` ile
+   konsolu kaydedin (IP, PSN Account ID, konsoldaki 8 haneli kod).
+2. Arayuzde modu *PS Remote Play* yapin, host ve (gerekirse) chiaki-ng profil adini girin, **Baslat**.
+
+```bat
+ps5mirror.bat discover       :: agdaki PS5'leri bul (Remote Play acik olmali)
 set "PS5_CREDENTIAL=<regist anahtari>"
 ps5mirror.bat wake --host 192.168.1.50
 ```
-
-`pip install .` yaparsaniz `ps5mirror` komutu da kurulur.
 
 ## Test
 
@@ -75,11 +92,11 @@ python -m unittest discover -s tests -v
 
 ## Bilinenler / sinirlar
 
-- Gercek PS5 olmadan **dogrulanmayanlar**: chiaki-ng `stream <profil> <host>` komut bicimi
-  (uymazsa ayarda `extra.remoteplay_template` ile degistirilir), kesif paketi bicimi
-  (PS5 icin UDP 9302) ve uyandirma paketi (UDP 9295), gercek akis kalitesi/gecikme.
-- Windows'ta bu kod calistirilarak denenmedi (testler Linux'ta kosuldu); yol arama ve
-  `.bat` baslaticisi Windows kurallarina gore yazildi.
-- Kayit (registration) ve PSN kimlik islemleri chiaki-ng'de yapilir; bu uygulama sifre/anahtar saklamaz.
-- Arayuz yalnizca `127.0.0.1` uzerinde dinler.
-- Uygulama Sony ile bagli degildir; Remote Play protokolu gayriresmi olarak chiaki tarafindan uygulanmistir.
+- **Gercek PS5 ile dogrulanmayanlar:** payload'a ELF gonderme, Glint API'si ile gercek akis
+  (cerceve bicimi Glint `docs/API.md`'ye gore yazildi), firmware 13.60 uyumu, gecikme, ses,
+  chiaki-ng komut bicimi, Remote Play kesif (UDP 9302) ve uyandirma (UDP 9295) paketleri.
+- Windows'ta calistirilarak denenmedi (testler ve ffplay denemesi Linux'ta yapildi).
+- Payload tek izleyiciye hizmet eder: Glint.exe veya tarayici paneli aciksa 409 doner; once onlari kapatin.
+- Glint yalnizca 1080p60 ve 60 Hz ekran modunda calisir (payload'in kendi siniri).
+- Arayuz yalnizca `127.0.0.1` uzerinde dinler; `/api/send-elf` yalnizca `.elf` uzantili yerel dosyalari gonderir.
+- Uygulama Sony ile baglantili degildir.

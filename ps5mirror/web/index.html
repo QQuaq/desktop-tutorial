@@ -35,32 +35,49 @@
 <body>
 <main>
   <h1>PS5 Mirror</h1>
-  <p class="sub">PS5 goruntusunu ve sesini bilgisayarda goster (PS Remote Play, chiaki-ng uzerinden).</p>
+  <p class="sub">PS5 goruntusunu bilgisayarda goster. Jailbreak'li konsolda payload (ELF) ile veya PS Remote Play ile.</p>
 
   <section>
-    <h2>Konsol</h2>
-    <label for="console">Konsol</label>
-    <select id="console"><option>PS5</option><option>PS4</option></select>
+    <h2>Baglanti</h2>
+    <label for="mode">Mod</label>
+    <select id="mode">
+      <option value="payload">Payload (ELF) - PSN gerekmez, jailbreak'li PS5</option>
+      <option value="remoteplay">PS Remote Play (chiaki-ng) - PSN gerekir</option>
+    </select>
+    <label for="host">PS5 IP adresi</label>
+    <div class="row">
+      <input id="host" placeholder="192.168.1.50">
+      <button class="sec" id="discover" title="Remote Play aciksa konsolu agda bulur">Agda ara</button>
+    </div>
+    <ul class="found" id="found"></ul>
 
-    <div id="rp">
-      <p class="dep">Once chiaki-ng icinde konsolu bir kez kaydedin (PSN hesabi + konsoldaki 8 haneli kod). Sonra buradan baslatabilirsiniz.</p>
-      <label for="host">Konsol IP adresi</label>
+    <div id="pl">
       <div class="row">
-        <input id="host" placeholder="192.168.1.50">
-        <button class="sec" id="discover">Agda ara</button>
+        <div><label for="payload_port">Payload HTTP portu</label><input id="payload_port" type="number"></div>
+        <div><label for="loader_port">ELF loader portu</label><input id="loader_port" type="number"></div>
       </div>
-      <ul class="found" id="found"></ul>
+      <label><input type="checkbox" id="audio" style="width:auto"> Sesi de PC'ye getir (deneysel; goruntuyle senkron degil)</label>
+      <label for="elf_path">PS5'e gonderilecek ELF (bilgisayardaki yol)</label>
+      <div class="row">
+        <input id="elf_path" placeholder="C:\Users\...\Glint-1.3-ps5.elf">
+        <button class="sec" id="sendelf">ELF'i gonder</button>
+      </div>
+      <p class="dep">Payload'i PS5'e yalnizca guvendiginiz kaynaktan indirip SHA256'sini dogrulayarak gonderin. Gonderdikten sonra konsolda "ready" bildirimini bekleyin.</p>
+    </div>
+
+    <div id="rp" class="hidden">
+      <p class="dep">Once chiaki-ng icinde konsolu bir kez kaydedin (PSN hesabi + konsoldaki 8 haneli kod).</p>
       <label for="chiaki_profile">chiaki-ng profil adi (kayitli konsol)</label>
       <input id="chiaki_profile" placeholder="bos birakirsan 'PS5' kullanilir">
       <label for="chiaki_path">chiaki-ng yolu (istege bagli)</label>
       <input id="chiaki_path" placeholder="otomatik bulunur">
     </div>
-
   </section>
 
   <section>
     <div class="row">
       <button id="save" class="sec">Ayarlari kaydet</button>
+      <button id="check" class="sec">Payload'a ulasilabiliyor mu?</button>
       <button id="start">Baslat</button>
       <button id="stop" class="stop">Durdur</button>
     </div>
@@ -71,7 +88,8 @@
 </main>
 <script>
 const $ = id => document.getElementById(id);
-const fields = ["console","host","chiaki_profile","chiaki_path"];
+const fields = ["mode","host","payload_port","loader_port","chiaki_profile","chiaki_path"];
+const numeric = ["payload_port","loader_port"];
 
 function say(text, cls="") { const m=$("msg"); m.textContent=text; m.className="msg "+cls; }
 async function api(path, body) {
@@ -83,15 +101,38 @@ async function api(path, body) {
 }
 function render(cfg) {
   fields.forEach(f => $(f).value = cfg[f] ?? "");
+  $("audio").checked = !!cfg.audio;
+  toggle();
+}
+function toggle() {
+  const pl = $("mode").value === "payload";
+  $("pl").classList.toggle("hidden", !pl);
+  $("rp").classList.toggle("hidden", pl);
+  $("check").classList.toggle("hidden", !pl);
+  $("discover").classList.toggle("hidden", pl);
 }
 async function collect() {
   const cfg = await api("/api/config");
-  fields.forEach(f => cfg[f] = $(f).value.trim());
+  fields.forEach(f => cfg[f] = numeric.includes(f) ? Number($(f).value) : $(f).value.trim());
+  cfg.audio = $("audio").checked;
   return cfg;
 }
 async function save() { const cfg = await collect(); await api("/api/config", cfg); }
 function wrap(fn) { return async () => { try { await fn(); } catch (e) { say(e.message, "err"); } }; }
 
+$("mode").onchange = toggle;
+$("sendelf").onclick = wrap(async () => {
+  await save();
+  const r = await api("/api/send-elf", {path: $("elf_path").value});
+  say(r.sent_bytes + " bayt gonderildi. Konsolda payload'in hazir olmasini bekleyin.", "ok");
+});
+$("check").onclick = wrap(async () => {
+  await save();
+  const r = await api("/api/payload-status");
+  if (!r.reachable) return say("Payload'a ulasilamadi: " + r.error, "err");
+  const st = r.status;
+  say(`Payload hazir: ${st.width}x${st.height}, ${st.fps} fps, ${st.viewers} izleyici`, "ok");
+});
 $("save").onclick = wrap(async () => { await save(); say("Kaydedildi.", "ok"); });
 $("start").onclick = wrap(async () => { await save(); const r = await api("/api/start", {}); say("Basladi: " + r.command.join(" "), "ok"); });
 $("stop").onclick = wrap(async () => { await api("/api/stop", {}); say("Durduruldu."); });
@@ -110,7 +151,7 @@ async function poll() {
     const s = await api("/api/status");
     $("start").disabled = s.running; $("stop").disabled = !s.running;
     const d = s.dependencies;
-    $("deps").textContent = `chiaki-ng: ${d.chiaki||"bulunamadi - kurulu degil"}`;
+    $("deps").textContent = `ffplay: ${d.ffplay||"bulunamadi"} | chiaki-ng: ${d.chiaki||"yok"}`;
     $("log").classList.toggle("hidden", !s.log.length);
     $("log").textContent = s.log.join("\n");
     if (!s.running && s.exit_code !== null && s.exit_code !== undefined && s.command) say("Surec bitti (kod " + s.exit_code + ").", s.exit_code ? "err" : "");

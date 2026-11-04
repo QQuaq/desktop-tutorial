@@ -1,13 +1,12 @@
-"""Komut satiri: python -m ps5mirror <ui|discover|wake|start|check>"""
+"""Komut satiri: python -m ps5mirror <ui|send-elf|discover|wake|start|check>"""
 from __future__ import annotations
 
 import argparse
 import sys
+import os
 import time
 
-import os
-
-from . import backends, config as cfgmod, discovery, server, wakeup
+from . import backends, config as cfgmod, discovery, payload, server, session as sessmod, wakeup
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +25,11 @@ def main(argv: list[str] | None = None) -> int:
     p_wake = sub.add_parser("wake", help="dinlenme modundaki konsolu uyandir (regist anahtari gerekir)")
     p_wake.add_argument("--host", required=True)
     p_wake.add_argument("--console", choices=cfgmod.CONSOLES, default="PS5")
+
+    p_elf = sub.add_parser("send-elf", help="ELF payload'ini konsoldaki ELF loader'a gonder")
+    p_elf.add_argument("elf", help="gonderilecek .elf dosyasi")
+    p_elf.add_argument("--host", help="bos ise kayitli ayardaki host")
+    p_elf.add_argument("--port", type=int, help="loader portu (varsayilan 9021)")
 
     sub.add_parser("start", help="kayitli ayarlarla yansitmayi baslat")
     sub.add_parser("check", help="ayarlari ve bagimliliklari kontrol et")
@@ -49,6 +53,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{f.address}\t{f.host_type}\t{f.host_name}\t{f.status}")
         return 0
 
+    if args.cmd == "send-elf":
+        try:
+            cfg = cfgmod.load(path)
+            host = args.host or cfg.host
+            if not host or not cfgmod.is_valid_host(host):
+                print("Hata: --host verin veya ayarlarda host kaydedin", file=sys.stderr)
+                return 2
+            sent = payload.send_elf(host, args.elf, args.port or cfg.loader_port)
+        except (cfgmod.ConfigError, payload.PayloadError) as exc:
+            print(f"Hata: {exc}", file=sys.stderr)
+            return 2
+        print(f"{sent} bayt gonderildi. Konsolda payload'in acilmasini bekleyin, sonra 'start'.")
+        return 0
+
     if args.cmd == "wake":
         credential = os.environ.get("PS5_CREDENTIAL", "").strip()
         try:
@@ -69,11 +87,20 @@ def main(argv: list[str] | None = None) -> int:
         errors = cfg.validate()
         for e in errors:
             print(f"AYAR: {e}")
+        import shutil
+        print("mod:", cfg.mode)
+        print("ffplay:   ", shutil.which("ffplay") or "YOK")
         print("chiaki-ng:", backends.find_chiaki(cfg.chiaki_path) or "YOK")
+        if cfg.mode == "payload" and cfg.host:
+            try:
+                st = payload.get_status(cfg.host, cfg.payload_port)
+                print(f"payload: ULASILDI ({st.get('width')}x{st.get('height')}, {st.get('fps')} fps)")
+            except payload.PayloadError as exc:
+                print(f"payload: ulasilamadi ({exc})")
         return 1 if errors else 0
 
     if args.cmd == "start":
-        session = backends.Session()
+        session = sessmod.Session()
         try:
             cmd = session.start(cfg)
         except (cfgmod.ConfigError, backends.BackendError) as exc:
