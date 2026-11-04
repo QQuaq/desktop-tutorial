@@ -29,6 +29,16 @@ ps5mirror.bat
 (Python varsa `py -3 -m ps5mirror` de ayni isi yapar; bagimlilik yoktur.)
 Tarayicinizda yerel arayuz (`http://127.0.0.1:8765`) acilir.
 
+## Kullanim senaryosu: yalnizca izleme (Wi-Fi, kontrolcu PC'ye bagli degil)
+
+- Sadece izleme icin kontrolcu gerekmez; DualSense PS5'e bagli kalir, PC'ye baglanmaz.
+- Remote Play resmi ozelliktir: PS5'in **jailbreak/ozel yazilim durumuna bagli degildir** ve
+  jailbreak gerektirmez. Bu proje jailbreak ile ilgili bir sey yapmaz veya desteklemez.
+  Remote Play kaydi icin PS5'te PSN hesabiyla giris yapilmis olmasi gerekir.
+- Wi-Fi ipuclari: PC ve PS5'i ayni 5 GHz agina alin, mumkunse PC'yi (veya PS5'i) kabloyla
+  baglayin; chiaki-ng'de 720p/30-60 FPS ile baslayip bant genisligine gore yukseltin.
+  Wi-Fi'da gecikme ve kare atlamasi kablolu baglantidan daha yuksek olur.
+
 ## Ilk kurulum (bir kerelik)
 
 1. **chiaki-ng'yi acin**, `+` ile konsolu ekleyin: PS5'in IP adresi, PSN hesap kimliginiz
