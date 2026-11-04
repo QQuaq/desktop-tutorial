@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS5 Mirror</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0f1a; --card:#141b2d; --fg:#e6ebf5; --mut:#8b97b3; --acc:#2d7cff; --err:#ff5c6c; --ok:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: var(--mut); margin: 0 0 20px; }
+  section { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--mut); margin: 0 0 12px; }
+  label { display:block; margin: 10px 0 4px; color: var(--mut); font-size: 13px; }
+  input, select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #2a3552; background:#0e1424; color:var(--fg); }
+  .row { display:flex; gap:8px; align-items:end; }
+  .row > * { flex:1; }
+  .row > button { flex:0 0 auto; }
+  button { padding:9px 16px; border:0; border-radius:8px; background:var(--acc); color:#fff; font-weight:600; cursor:pointer; }
+  button.sec { background:#2a3552; }
+  button.stop { background:var(--err); }
+  button:disabled { opacity:.5; cursor:default; }
+  .msg { margin-top:10px; min-height:1.4em; font-size:13px; }
+  .msg.err { color: var(--err); } .msg.ok { color: var(--ok); }
+  pre { background:#0e1424; padding:10px; border-radius:8px; max-height:180px; overflow:auto; font-size:12px; margin:8px 0 0; white-space:pre-wrap; }
+  .dep { font-size:13px; color:var(--mut); }
+  ul.found { list-style:none; padding:0; margin:8px 0 0; }
+  ul.found li { padding:6px 8px; border-radius:6px; cursor:pointer; }
+  ul.found li:hover { background:#1c2640; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PS5 Mirror</h1>
+  <p class="sub">PS5 goruntusunu ve sesini bilgisayarda goster (PS Remote Play, chiaki-ng uzerinden).</p>
+
+  <section>
+    <h2>Konsol</h2>
+    <label for="console">Konsol</label>
+    <select id="console"><option>PS5</option><option>PS4</option></select>
+
+    <div id="rp">
+      <p class="dep">Once chiaki-ng icinde konsolu bir kez kaydedin (PSN hesabi + konsoldaki 8 haneli kod). Sonra buradan baslatabilirsiniz.</p>
+      <label for="host">Konsol IP adresi</label>
+      <div class="row">
+        <input id="host" placeholder="192.168.1.50">
+        <button class="sec" id="discover">Agda ara</button>
+      </div>
+      <ul class="found" id="found"></ul>
+      <label for="chiaki_profile">chiaki-ng profil adi (kayitli konsol)</label>
+      <input id="chiaki_profile" placeholder="bos birakirsan 'PS5' kullanilir">
+      <label for="chiaki_path">chiaki-ng yolu (istege bagli)</label>
+      <input id="chiaki_path" placeholder="otomatik bulunur">
+    </div>
+
+  </section>
+
+  <section>
+    <div class="row">
+      <button id="save" class="sec">Ayarlari kaydet</button>
+      <button id="start">Baslat</button>
+      <button id="stop" class="stop">Durdur</button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div class="dep" id="deps"></div>
+    <pre id="log" class="hidden"></pre>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const fields = ["console","host","chiaki_profile","chiaki_path"];
+
+function say(text, cls="") { const m=$("msg"); m.textContent=text; m.className="msg "+cls; }
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  const data = await r.json();
+  if (!r.ok) throw new Error((data.errors||[data.error||r.statusText]).join("; "));
+  return data;
+}
+function render(cfg) {
+  fields.forEach(f => $(f).value = cfg[f] ?? "");
+}
+async function collect() {
+  const cfg = await api("/api/config");
+  fields.forEach(f => cfg[f] = $(f).value.trim());
+  return cfg;
+}
+async function save() { const cfg = await collect(); await api("/api/config", cfg); }
+function wrap(fn) { return async () => { try { await fn(); } catch (e) { say(e.message, "err"); } }; }
+
+$("save").onclick = wrap(async () => { await save(); say("Kaydedildi.", "ok"); });
+$("start").onclick = wrap(async () => { await save(); const r = await api("/api/start", {}); say("Basladi: " + r.command.join(" "), "ok"); });
+$("stop").onclick = wrap(async () => { await api("/api/stop", {}); say("Durduruldu."); });
+$("discover").onclick = wrap(async () => {
+  say("Araniyor...");
+  const list = await api("/api/discover", {console: $("console").value});
+  $("found").innerHTML = "";
+  if (!list.length) return say("Konsol bulunamadi (ayni agda mi? acik veya dinlenme modunda mi?).", "err");
+  say(list.length + " konsol bulundu.", "ok");
+  list.forEach(c => { const li = document.createElement("li");
+    li.textContent = `${c.address} - ${c.host_name||c.host_type} (${c.status})`;
+    li.onclick = () => $("host").value = c.address; $("found").appendChild(li); });
+});
+async function poll() {
+  try {
+    const s = await api("/api/status");
+    $("start").disabled = s.running; $("stop").disabled = !s.running;
+    const d = s.dependencies;
+    $("deps").textContent = `chiaki-ng: ${d.chiaki||"bulunamadi - kurulu degil"}`;
+    $("log").classList.toggle("hidden", !s.log.length);
+    $("log").textContent = s.log.join("\n");
+    if (!s.running && s.exit_code !== null && s.exit_code !== undefined && s.command) say("Surec bitti (kod " + s.exit_code + ").", s.exit_code ? "err" : "");
+  } catch (e) {}
+}
+api("/api/config").then(render); poll(); setInterval(poll, 2000);
+</script>
+</body>
+</html>
