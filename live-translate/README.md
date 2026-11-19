@@ -8,7 +8,9 @@ Mikrofondan İngilizce konuşma tanır; Türkçe altyazı ve isteğe bağlı ses
 
 **https://qquaq.github.io/desktop-tutorial/**
 
-İlk kez: GitHub repo → Settings → Pages → **Build and deployment** → Source: **GitHub Actions**.
+İlk kez (bir kez yapman yeter): GitHub repo → **Settings** → **Pages** → kaynak olarak **`gh-pages`** dalı, klasör **`/ (root)`**. (Alternatif: kaynak **GitHub Actions**; o zaman workflow’un en üstündeki deploy-pages adımını kullan.)
+
+Repo **private** ise GitHub’da Pages için ek plan/izin gerekebilir; site açılmıyorsa repo’yu public yap veya Settings’ten Pages görünürlüğünü kontrol et.
 
 ## Yerel geliştirme
 
