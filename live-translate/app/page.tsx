@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { translateEnToTr } from "@/lib/translate";
 
 type SpeechRecognitionCtor = new () => SpeechRecognition;
 
@@ -33,19 +34,7 @@ function pickTurkishVoice(): SpeechSynthesisVoice | null {
 }
 
 async function translateText(text: string): Promise<string> {
-  const res = await fetch("/api/translate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    translated?: string;
-    error?: string;
-  };
-  if (!res.ok) {
-    throw new Error(data.error || `Çeviri hatası (${res.status})`);
-  }
-  return data.translated ?? "";
+  return translateEnToTr(text);
 }
 
 export default function HomePage() {
