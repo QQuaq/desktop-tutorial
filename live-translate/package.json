@@ -3,9 +3,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 3456",
+    "dev:lan": "next dev -H 0.0.0.0 -p 3456",
     "build": "next build",
     "build:gh-pages": "GITHUB_PAGES=true next build",
-    "start": "next start -H 127.0.0.1 -p 3456"
+    "start": "next start -H 127.0.0.1 -p 3456",
+    "start:lan": "next start -H 0.0.0.0 -p 3456",
+    "serve:lan": "npm run build && npm run start:lan",
+    "print:lan": "node scripts/print-lan-urls.mjs"
   },
   "dependencies": {
     "next": "^15.1.0",

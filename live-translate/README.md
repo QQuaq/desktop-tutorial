@@ -2,42 +2,37 @@
 
 Mikrofondan İngilizce konuşma tanır; Türkçe altyazı ve isteğe bağlı sesli okuma.
 
-## GitHub Pages adresi
+## Ev ağında PC sunucusu (GitHub yok)
 
-**https://qquaq.github.io/desktop-tutorial/**
+Windows’ta `live-translate` klasöründe **`sunucu.bat`** dosyasına çift tıkla.
 
-(Şahsen açmayı dene; sonunda `/` olsun.)
+Mac/Linux:
 
-## 404 alıyorsan (bir kez ayarla)
+```bash
+chmod +x sunucu.sh && ./sunucu.sh
+```
 
-1. [Repository → Settings → Pages](https://github.com/QQuaq/desktop-tutorial/settings/pages)
-2. **Build and deployment** → **Deploy from a branch**
-3. Branch: **`main`**, klasör: **`/docs`**
-4. **Save** — yayın 1–3 dakika sürebilir
+Tarayıcıda aç:
 
-`main` dalına kod gidince GitHub Actions `docs/` klasörünü otomatik günceller.
+- **Bu bilgisayarda mikrofon için:** `http://127.0.0.1:3456`
+- **Telefon / başka cihaz (aynı Wi‑Fi):** terminalde yazan `http://192.168.x.x:3456` adresi
 
-### Repo private ise
+Sunucuyu kapatmak: siyah pencerede **Ctrl+C**.
 
-Private repolarda **ücretsiz** hesapta GitHub Pages genelde **dışarıya kapalı** veya **404** verir. Çözümler:
+### Mikrofon notu
 
-- Repoyu **public** yap, veya
-- GitHub planında private Pages aç, veya
-- [Cursor’daki yayın](https://ingilizce-turkce.apps.grok.bot) adresini kullan
+Chrome/Edge, mikrofonu çoğu zaman yalnızca **127.0.0.1** veya **HTTPS** üzerinde açar. Telefondan `http://192.168...` ile mikrofon çalışmazsa çeviriyi **sunucu PC’de** `127.0.0.1:3456` üzerinden kullan.
 
-## Yerel geliştirme
+### Geliştirici
 
 ```bash
 npm install
-npm run dev
+npm run dev          # sadece bu PC
+npm run dev:lan      # ağdan da erişim (geliştirme)
+npm run serve:lan    # derle + ağda yayın
 ```
 
-http://127.0.0.1:3456
+## Teknik
 
-## GitHub Pages derlemesi (lokal)
-
-```bash
-npm run build:gh-pages
-```
-
-Çıktı: `out/` → üretimde `docs/` içine kopyalanır.
+- Next.js, port **3456**, dinleme adresi **0.0.0.0** (sadece yerel ağ; internete açma).
+- Çeviri: tarayıcıdan MyMemory API (internet gerekir; sunucu dışarıya sadece çeviri isteği atar).
