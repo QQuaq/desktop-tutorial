@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Canlı İngilizce → Türkçe",
+  title: "Canlı Türkçe altyazı",
   description:
-    "Mikrofondan İngilizce konuşmayı anlık olarak Türkçeye çevirir.",
+    "Mikrofondan İngilizce konuşmayı tanır; Türkçe yalnızca yazı altyazı olarak gösterilir, sesli okuma yoktur.",
 };
 
 export const viewport: Viewport = {

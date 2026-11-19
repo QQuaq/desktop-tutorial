@@ -14,6 +14,12 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+function cancelBrowserSpeech() {
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
 async function translateText(text: string): Promise<string> {
   const res = await fetch("/api/translate", {
     method: "POST",
@@ -37,7 +43,7 @@ export default function HomePage() {
   const [statusKind, setStatusKind] = useState<"" | "ok" | "error">("");
   const [englishFinal, setEnglishFinal] = useState("");
   const [englishInterim, setEnglishInterim] = useState("");
-  const [turkishFinal, setTurkishFinal] = useState("");
+  const [turkishLines, setTurkishLines] = useState<string[]>([]);
   const [turkishInterim, setTurkishInterim] = useState("");
   const [translating, setTranslating] = useState(false);
 
@@ -66,6 +72,7 @@ export default function HomePage() {
         lastInterimSentRef.current = trimmed;
         try {
           const tr = await translateText(trimmed);
+          cancelBrowserSpeech();
           setTurkishInterim(tr);
         } catch {
           /* interim çevirisi sessizce atlanır */
@@ -88,7 +95,9 @@ export default function HomePage() {
       setStatusKind("");
       try {
         const tr = await translateText(text);
-        setTurkishFinal((prev) => (prev ? `${prev} ${tr}` : tr));
+        cancelBrowserSpeech();
+        setTurkishLines((prev) => [...prev, tr].slice(-4));
+        setTurkishInterim("");
         setStatus("Dinleniyor");
         setStatusKind("ok");
       } catch (e) {
@@ -205,6 +214,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setSupported(!!getSpeechRecognition());
+    cancelBrowserSpeech();
     return () => {
       wantListenRef.current = false;
       clearInterimTimer();
@@ -227,21 +237,30 @@ export default function HomePage() {
   const clearAll = () => {
     setEnglishFinal("");
     setEnglishInterim("");
-    setTurkishFinal("");
+    setTurkishLines([]);
     setTurkishInterim("");
+    cancelBrowserSpeech();
     lastInterimSentRef.current = "";
     setStatus("");
     setStatusKind("");
   };
 
+  const lastFinalLine = turkishLines[turkishLines.length - 1];
+  const previousFinalLine = turkishLines[turkishLines.length - 2];
+  const mainSubtitle = turkishInterim || lastFinalLine || "";
+  const dimSubtitle = turkishInterim
+    ? lastFinalLine
+    : previousFinalLine;
+
   return (
     <main>
       <header>
-        <h1>Canlı İngilizce → Türkçe</h1>
+        <h1>Canlı Türkçe altyazı</h1>
         <p>
-          Mikrofonunuzdan gelen İngilizce konuşma tanınır ve anlık olarak
-          Türkçeye çevrilir.
+          İngilizce konuşma mikrofondan tanınır; karşılığı yalnızca ekranda
+          Türkçe yazı altyazı olarak görünür.
         </p>
+        <span className="badge-muted">Sesli Türkçe yok — sadece yazı</span>
       </header>
 
       <div className="toolbar">
@@ -275,34 +294,48 @@ export default function HomePage() {
         )}
       </div>
 
-      <div className="panels">
-        <section className="panel" aria-label="İngilizce">
-          <div className="panel-head">İngilizce (tanıma)</div>
-          <div className="panel-body">
-            {englishFinal || (listening ? "…" : "Mikrofonu açın ve konuşun.")}
-          </div>
-          {(englishInterim || listening) && (
-            <div className="panel-body interim">
-              {englishInterim || "\u00a0"}
-            </div>
-          )}
-        </section>
-        <section className="panel" aria-label="Türkçe">
-          <div className="panel-head">Türkçe (çeviri)</div>
-          <div className="panel-body">
-            {turkishFinal || (listening ? "Çeviri bekleniyor…" : "—")}
-          </div>
-          {(turkishInterim || englishInterim) && (
-            <div className="panel-body interim">{turkishInterim || "\u00a0"}</div>
-          )}
-        </section>
-      </div>
+      <section
+        className="subtitle-stage"
+        aria-label="Türkçe altyazı"
+        aria-live="off"
+      >
+        <span className="subtitle-label">Altyazı</span>
+        {!mainSubtitle ? (
+          <p className="subtitle-empty">
+            {listening
+              ? "Konuşun, Türkçe altyazı burada görünecek…"
+              : "Mikrofonu açıp İngilizce konuşun."}
+          </p>
+        ) : (
+          <>
+            {dimSubtitle && dimSubtitle !== mainSubtitle ? (
+              <p className="subtitle-line dim">{dimSubtitle}</p>
+            ) : null}
+            <p
+              className={`subtitle-line${
+                turkishInterim ? " interim" : ""
+              }`}
+            >
+              {mainSubtitle}
+            </p>
+          </>
+        )}
+      </section>
+
+      <details className="details-en">
+        <summary>İngilizce tanıma metni (isteğe bağlı)</summary>
+        <div className="details-en-body">
+          {englishFinal || "—"}
+          {englishInterim ? (
+            <div className="interim">{englishInterim}</div>
+          ) : null}
+        </div>
+      </details>
 
       <p className="hint">
-        <strong>İpucu:</strong> En iyi sonuç için Chrome veya Edge kullanın,
-        sayfayı <strong>HTTPS</strong> üzerinden açın ve mikrofon izni verin.
-        Gürültülü ortamda net konuşmak tanımayı iyileştirir. Çeviri birkaç yüz
-        ms gecikmeli güncellenir; bu normaldir.
+        <strong>İpucu:</strong> Chrome veya Edge kullanın; mikrofon izni verin.
+        Türkçe yalnızca <strong>yazı altyazı</strong>dır, uygulama sesli okuma
+        yapmaz. Çeviri birkaç yüz ms gecikmeli olabilir.
       </p>
     </main>
   );
