@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages-live-translate
@@ -39,9 +37,15 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Copy static site to docs/
+        run: |
+          rm -rf docs
+          cp -a live-translate/out/. docs/
+
+      - name: Commit docs for GitHub Pages
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: live-translate/out
-          commit_message: "ci: deploy live-translate site"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "chore: deploy live-translate to docs/"
+          file_pattern: docs/**
