@@ -122,20 +122,11 @@ export default function HomePage() {
     (text: string) => {
       clearInterimTimer();
       const trimmed = text.trim();
-      if (!trimmed || trimmed.length < 3) {
+      if (!trimmed) {
         setTurkishInterim("");
         return;
       }
-      interimTimerRef.current = setTimeout(async () => {
-        if (trimmed === lastInterimSentRef.current) return;
-        lastInterimSentRef.current = trimmed;
-        try {
-          const tr = await translateText(trimmed);
-          setTurkishInterim(tr);
-        } catch {
-          /* interim çevirisi sessizce atlanır */
-        }
-      }, 450);
+      setTurkishInterim("…");
     },
     [clearInterimTimer],
   );
