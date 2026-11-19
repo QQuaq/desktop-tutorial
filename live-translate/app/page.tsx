@@ -20,6 +20,18 @@ function cancelBrowserSpeech() {
   }
 }
 
+function pickTurkishVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    return null;
+  }
+  const voices = window.speechSynthesis.getVoices();
+  return (
+    voices.find((v) => v.lang === "tr-TR" || v.lang.startsWith("tr-")) ??
+    voices.find((v) => /turk/i.test(v.name)) ??
+    null
+  );
+}
+
 async function translateText(text: string): Promise<string> {
   const res = await fetch("/api/translate", {
     method: "POST",
@@ -46,11 +58,64 @@ export default function HomePage() {
   const [turkishLines, setTurkishLines] = useState<string[]>([]);
   const [turkishInterim, setTurkishInterim] = useState("");
   const [translating, setTranslating] = useState(false);
+  const [speakEnabled, setSpeakEnabled] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const wantListenRef = useRef(false);
   const interimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastInterimSentRef = useRef("");
+  const speakEnabledRef = useRef(false);
+  const speakQueueRef = useRef<string[]>([]);
+  const speakingRef = useRef(false);
+  const lastSpokenRef = useRef("");
+
+  const flushSpeakQueue = useCallback(() => {
+    if (
+      typeof window === "undefined" ||
+      !speakEnabledRef.current ||
+      speakingRef.current ||
+      !("speechSynthesis" in window)
+    ) {
+      return;
+    }
+    const next = speakQueueRef.current.shift();
+    if (!next) return;
+    speakingRef.current = true;
+    const utterance = new SpeechSynthesisUtterance(next);
+    utterance.lang = "tr-TR";
+    const voice = pickTurkishVoice();
+    if (voice) utterance.voice = voice;
+    utterance.rate = 0.96;
+    utterance.onend = () => {
+      speakingRef.current = false;
+      flushSpeakQueue();
+    };
+    utterance.onerror = () => {
+      speakingRef.current = false;
+      flushSpeakQueue();
+    };
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const enqueueTurkishSpeech = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!speakEnabledRef.current || !trimmed || trimmed === lastSpokenRef.current) {
+        return;
+      }
+      lastSpokenRef.current = trimmed;
+      speakQueueRef.current.push(trimmed);
+      flushSpeakQueue();
+    },
+    [flushSpeakQueue],
+  );
+
+  const stopTurkishSpeech = useCallback(() => {
+    speakQueueRef.current = [];
+    speakingRef.current = false;
+    lastSpokenRef.current = "";
+    cancelBrowserSpeech();
+  }, []);
 
   const clearInterimTimer = useCallback(() => {
     if (interimTimerRef.current) {
@@ -72,7 +137,6 @@ export default function HomePage() {
         lastInterimSentRef.current = trimmed;
         try {
           const tr = await translateText(trimmed);
-          cancelBrowserSpeech();
           setTurkishInterim(tr);
         } catch {
           /* interim çevirisi sessizce atlanır */
@@ -95,9 +159,9 @@ export default function HomePage() {
       setStatusKind("");
       try {
         const tr = await translateText(text);
-        cancelBrowserSpeech();
         setTurkishLines((prev) => [...prev, tr].slice(-4));
         setTurkishInterim("");
+        enqueueTurkishSpeech(tr);
         setStatus("Dinleniyor");
         setStatusKind("ok");
       } catch (e) {
@@ -108,7 +172,7 @@ export default function HomePage() {
         setTranslating(false);
       }
     },
-    [],
+    [enqueueTurkishSpeech],
   );
 
   const stopListening = useCallback(() => {
@@ -214,10 +278,16 @@ export default function HomePage() {
 
   useEffect(() => {
     setSupported(!!getSpeechRecognition());
-    cancelBrowserSpeech();
+    try {
+      const stored = localStorage.getItem("live-tr-speak");
+      if (stored === "1") setSpeakEnabled(true);
+    } catch {
+      /* ignore */
+    }
     return () => {
       wantListenRef.current = false;
       clearInterimTimer();
+      stopTurkishSpeech();
       const rec = recognitionRef.current;
       if (rec) {
         try {
@@ -227,7 +297,31 @@ export default function HomePage() {
         }
       }
     };
-  }, [clearInterimTimer]);
+  }, [clearInterimTimer, stopTurkishSpeech]);
+
+  useEffect(() => {
+    speakEnabledRef.current = speakEnabled;
+    try {
+      localStorage.setItem("live-tr-speak", speakEnabled ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+    if (!speakEnabled) {
+      stopTurkishSpeech();
+    }
+  }, [speakEnabled, stopTurkishSpeech]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const warmVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+    warmVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", warmVoices);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", warmVoices);
+    };
+  }, []);
 
   const toggleMic = () => {
     if (listening) stopListening();
@@ -239,7 +333,7 @@ export default function HomePage() {
     setEnglishInterim("");
     setTurkishLines([]);
     setTurkishInterim("");
-    cancelBrowserSpeech();
+    stopTurkishSpeech();
     lastInterimSentRef.current = "";
     setStatus("");
     setStatusKind("");
@@ -257,10 +351,14 @@ export default function HomePage() {
       <header>
         <h1>Canlı Türkçe altyazı</h1>
         <p>
-          İngilizce konuşma mikrofondan tanınır; karşılığı yalnızca ekranda
-          Türkçe yazı altyazı olarak görünür.
+          İngilizce konuşma mikrofondan tanınır; Türkçe altyazı ekranda
+          görünür. İsterseniz çeviriyi sesli de okutabilirsiniz.
         </p>
-        <span className="badge-muted">Sesli Türkçe yok — sadece yazı</span>
+        <span className="badge-muted">
+          {speakEnabled
+            ? "Sesli okuma açık — kesinleşen cümleler okunur"
+            : "Varsayılan: yalnızca yazı altyazı"}
+        </span>
       </header>
 
       <div className="toolbar">
@@ -286,6 +384,15 @@ export default function HomePage() {
           }}
         >
           Temizle
+        </button>
+        <button
+          type="button"
+          className={`speak-toggle${speakEnabled ? " on" : ""}`}
+          onClick={() => setSpeakEnabled((v) => !v)}
+          aria-pressed={speakEnabled}
+        >
+          <span className="speak-toggle-knob" aria-hidden />
+          Sesli okuma: {speakEnabled ? "Açık" : "Kapalı"}
         </button>
         {status && (
           <span className={`status${statusKind ? ` ${statusKind}` : ""}`}>
@@ -334,8 +441,9 @@ export default function HomePage() {
 
       <p className="hint">
         <strong>İpucu:</strong> Chrome veya Edge kullanın; mikrofon izni verin.
-        Türkçe yalnızca <strong>yazı altyazı</strong>dır, uygulama sesli okuma
-        yapmaz. Çeviri birkaç yüz ms gecikmeli olabilir.
+        <strong>Sesli okuma</strong> kapalıyken yalnızca altyazı gösterilir;
+        açıkken tanımanın kesinleştiği Türkçe cümleler tarayıcı sesiyle okunur
+        (sırada bekletilir). Çeviri birkaç yüz ms gecikmeli olabilir.
       </p>
     </main>
   );

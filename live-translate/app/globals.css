@@ -133,6 +133,36 @@ header p {
   color: #6dd4a0;
 }
 
+.speak-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid #243049;
+  background: #141b2d;
+  color: #c5d0e4;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.speak-toggle.on {
+  border-color: #2d7cff;
+  background: #1a2845;
+  color: #e8edf7;
+}
+
+.speak-toggle-knob {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #6f7f9c;
+}
+
+.speak-toggle.on .speak-toggle-knob {
+  background: #6dd4a0;
+}
+
 .subtitle-stage {
   position: relative;
   min-height: 200px;

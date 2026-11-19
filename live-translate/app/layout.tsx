@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Canlı Türkçe altyazı",
   description:
-    "Mikrofondan İngilizce konuşmayı tanır; Türkçe yalnızca yazı altyazı olarak gösterilir, sesli okuma yoktur.",
+    "Mikrofondan İngilizce konuşmayı tanır; Türkçe altyazı ve isteğe bağlı sesli okuma.",
 };
 
 export const viewport: Viewport = {
