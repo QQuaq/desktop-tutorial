@@ -94,7 +94,12 @@ export default function HomePage() {
       speakingRef.current = false;
       flushSpeakQueue();
     };
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      speakingRef.current = false;
+      flushSpeakQueue();
+    }
   }, []);
 
   const enqueueTurkishSpeech = useCallback(
@@ -313,13 +318,19 @@ export default function HomePage() {
 
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
     const warmVoices = () => {
-      window.speechSynthesis.getVoices();
+      try {
+        synth.getVoices();
+      } catch {
+        /* ignore */
+      }
     };
     warmVoices();
-    window.speechSynthesis.addEventListener("voiceschanged", warmVoices);
+    const previous = synth.onvoiceschanged;
+    synth.onvoiceschanged = warmVoices;
     return () => {
-      window.speechSynthesis.removeEventListener("voiceschanged", warmVoices);
+      synth.onvoiceschanged = previous ?? null;
     };
   }, []);
 
