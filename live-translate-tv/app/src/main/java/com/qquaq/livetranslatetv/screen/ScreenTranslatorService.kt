@@ -63,6 +63,7 @@ class ScreenTranslatorService : Service() {
     private var lastSignature: IntArray? = null
     private var lastCleanAt = 0L
     private var recheckAfterOcr = false
+    private var ocrBoxes: List<OverlayBox> = emptyList()
 
     // Network source
     private var server: RemoteOverlayServer? = null
@@ -250,6 +251,7 @@ class ScreenTranslatorService : Service() {
         lastSignature = null
         lastCleanAt = 0L
         recheckAfterOcr = false
+        ocrBoxes = emptyList()
         ocrRunning = true
         ScreenTranslatorState.update { it.copy(ocr = true, boxes = 0, frames = 0, ocrRuns = 0, lastError = null) }
         handler.postDelayed(::tick, INTERVAL_MS)
@@ -268,6 +270,7 @@ class ScreenTranslatorService : Service() {
         projection = null
         textTranslator?.close()
         textTranslator = null
+        ocrBoxes = emptyList()
         overlay?.setOcrBoxes(emptyList())
         ScreenTranslatorState.update { it.copy(ocr = false, boxes = 0) }
         if (server != null) enterForeground(withProjection = false)
@@ -310,11 +313,13 @@ class ScreenTranslatorService : Service() {
         recheckAfterOcr = false
 
         val signature = Frames.signature(clean)
-        if (!changed(lastSignature, signature)) {
+        val previous = lastSignature
+        if (!changed(previous, signature)) {
             clean.recycle()
             return
         }
         lastSignature = signature
+        if (previous != null) dropStaleBoxes(previous, signature)
 
         val blocks = textTranslator?.process(clean).orEmpty()
         clean.recycle()
@@ -325,17 +330,40 @@ class ScreenTranslatorService : Service() {
             )
         }
         if (!ocrRunning) return
+        ocrBoxes = boxes
         onMain { overlay?.setOcrBoxes(boxes) }
         settleAndDrain()
         recheckAfterOcr = true
         ScreenTranslatorState.update { it.copy(boxes = boxes.size, ocrRuns = it.ocrRuns + 1, lastError = null) }
     }
 
+    /**
+     * OCR + translation of a new screen takes seconds on TV hardware; meanwhile boxes from the previous screen
+     * would cover unrelated content. Removes at once every box whose underlying area changed.
+     */
+    private fun dropStaleBoxes(previous: IntArray, current: IntArray) {
+        if (ocrBoxes.isEmpty()) return
+        val w = metrics.widthPixels.toFloat()
+        val h = metrics.heightPixels.toFloat()
+        val kept = ocrBoxes.filterNot {
+            Frames.regionChanged(previous, current, it.rect.left / w, it.rect.top / h, it.rect.right / w, it.rect.bottom / h, CELL_THRESHOLD)
+        }
+        if (kept.size == ocrBoxes.size) return
+        ocrBoxes = kept
+        onMain { overlay?.setOcrBoxes(kept) }
+    }
+
     /** Hides our overlay for one frame so OCR never sees (and re-translates) our own Turkish boxes. */
     private fun captureWithoutOverlay(): Bitmap? {
         onMain { overlay?.visibility = View.INVISIBLE }
         SystemClock.sleep(HIDE_SETTLE_MS)
-        val image = reader?.acquireLatestImage()
+        var image = reader?.acquireLatestImage()
+        // A busy device may composite the hidden-overlay frame late; without it the boxes are never re-checked.
+        val deadline = SystemClock.uptimeMillis() + HIDE_MAX_EXTRA_MS
+        while (image == null && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(20)
+            image = reader?.acquireLatestImage()
+        }
         onMain { overlay?.visibility = View.VISIBLE }
         val bmp = image?.let { Frames.toBitmap(it).also { _ -> it.close() } }
         settleAndDrain()
@@ -445,6 +473,7 @@ class ScreenTranslatorService : Service() {
         private const val INTERVAL_MS = 800L
         private const val REFRESH_MS = 3000L
         private const val HIDE_SETTLE_MS = 120L
+        private const val HIDE_MAX_EXTRA_MS = 400L
         private const val OWN_SETTLE_MS = 150L
         private const val CELL_THRESHOLD = 12
         private const val MIN_CHANGED_CELLS = 2

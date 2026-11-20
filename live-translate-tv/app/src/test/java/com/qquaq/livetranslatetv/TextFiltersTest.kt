@@ -1,5 +1,6 @@
 package com.qquaq.livetranslatetv
 
+import com.qquaq.livetranslatetv.screen.Frames
 import com.qquaq.livetranslatetv.screen.OcrBlock
 import com.qquaq.livetranslatetv.screen.ScreenTextTranslator
 import org.junit.Assert.assertEquals
@@ -53,6 +54,16 @@ class TextFiltersTest {
             OcrBlock(100, 500, 400, 530, "lowercase but distant", 1, "und"),
         )
         assertEquals(blocks.map { it.text }, ScreenTextTranslator.mergeContinuations(blocks).map { it.text })
+    }
+
+    @Test
+    fun boxIsStaleOnlyWhereTheScreenChanged() {
+        val old = IntArray(96 * 54) { 20 }
+        val new = old.copyOf()
+        for (y in 0 until 27) for (x in 0 until 48) new[y * 96 + x] = 240
+        assertTrue(Frames.regionChanged(old, new, 0.05f, 0.1f, 0.4f, 0.2f, 12))
+        assertFalse(Frames.regionChanged(old, new, 0.6f, 0.6f, 0.9f, 0.7f, 12))
+        assertFalse(Frames.regionChanged(old, old, 0f, 0f, 1f, 1f, 12))
     }
 
     @Test
