@@ -43,6 +43,7 @@ fun TranslateScreen(
     vm: LiveTranslateViewModel,
     onToggleMic: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenScreenMode: () -> Unit,
 ) {
     val micFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { micFocus.requestFocus() }
@@ -85,6 +86,7 @@ fun TranslateScreen(
             OutlinedButton(onClick = vm::toggleSpeak) {
                 Text(stringResource(if (vm.speakEnabled) R.string.speak_on else R.string.speak_off))
             }
+            OutlinedButton(onClick = onOpenScreenMode) { Text(stringResource(R.string.screen_mode_button)) }
             OutlinedButton(onClick = onOpenSettings) { Text(stringResource(R.string.settings)) }
 
             vm.status?.let { st ->
