@@ -16,7 +16,7 @@ object ScreenPermissions {
     fun canDrawOverlays(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
-    /** Many Android TV builds ship without this settings page; returns false when it cannot be opened. */
+    /** Google TV ships without this settings page; returns false when it cannot be opened. */
     fun openOverlaySettings(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
         val intents = listOf(
@@ -39,16 +39,25 @@ object ScreenPermissions {
         (context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
             .createScreenCaptureIntent()
 
-    fun startService(context: Context, resultCode: Int, data: Intent) {
+    fun startOcr(context: Context, resultCode: Int, data: Intent) {
         val intent = Intent(context, ScreenTranslatorService::class.java)
             .putExtra(ScreenTranslatorService.EXTRA_RESULT_CODE, resultCode)
             .putExtra(ScreenTranslatorService.EXTRA_RESULT_DATA, data)
         ContextCompat.startForegroundService(context, intent)
     }
 
-    fun stopService(context: Context) {
-        context.startService(
-            Intent(context, ScreenTranslatorService::class.java).setAction(ScreenTranslatorService.ACTION_STOP),
-        )
+    fun startNetwork(context: Context) = ContextCompat.startForegroundService(
+        context, Intent(context, ScreenTranslatorService::class.java).setAction(ScreenTranslatorService.ACTION_START_NETWORK),
+    )
+
+    fun stopOcr(context: Context) = send(context, ScreenTranslatorService.ACTION_STOP_OCR)
+
+    fun stopNetwork(context: Context) = send(context, ScreenTranslatorService.ACTION_STOP_NETWORK)
+
+    fun stopAll(context: Context) = send(context, ScreenTranslatorService.ACTION_STOP)
+
+    private fun send(context: Context, action: String) {
+        if (!ScreenTranslatorState.status.value.running) return
+        context.startService(Intent(context, ScreenTranslatorService::class.java).setAction(action))
     }
 }

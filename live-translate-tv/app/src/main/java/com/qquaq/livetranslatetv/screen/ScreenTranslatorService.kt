@@ -31,103 +31,97 @@ import com.qquaq.livetranslatetv.MainActivity
 import com.qquaq.livetranslatetv.Prefs
 import com.qquaq.livetranslatetv.R
 import com.qquaq.livetranslatetv.withAppLocale
+import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
- * Background screen translator: mirrors the display into an ImageReader via MediaProjection,
- * OCRs English text and draws Turkish boxes on a TYPE_APPLICATION_OVERLAY window.
+ * Draws Turkish text over the TV picture on a TYPE_APPLICATION_OVERLAY window. Two independent sources:
+ *  - OCR: mirrors the display via MediaProjection, OCRs English text on-device and translates it.
+ *  - Network: [RemoteOverlayServer] accepts already-translated boxes from another device on the LAN
+ *    (for content the TV cannot capture, e.g. an HDMI input).
  */
 class ScreenTranslatorService : Service() {
 
     private val main = Handler(Looper.getMainLooper())
-    private lateinit var worker: HandlerThread
-    private lateinit var workerHandler: Handler
     private lateinit var windowManager: WindowManager
+    private val metrics = DisplayMetrics()
+    private var overlay: OverlayView? = null
 
+    // OCR source
+    private var worker: HandlerThread? = null
+    private var workerHandler: Handler? = null
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var reader: ImageReader? = null
-    private var overlay: OverlayView? = null
     private var textTranslator: ScreenTextTranslator? = null
-
-    @Volatile private var running = false
+    @Volatile private var ocrRunning = false
     private var scale = 1f
     private var lastVisible: Bitmap? = null
     private var lastSignature: IntArray? = null
     private var lastCleanAt = 0L
 
+    // Network source
+    private var server: RemoteOverlayServer? = null
+    private var remoteGeneration = 0
+
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(newBase.withAppLocale())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-        if (projection != null) return START_NOT_STICKY
-
-        startInForeground()
-        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
+    override fun onCreate() {
+        super.onCreate()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         @Suppress("DEPRECATION")
-        val data = intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
-        if (data == null || !ScreenPermissions.canDrawOverlays(this)) {
-            fail(getString(R.string.screen_err_permissions))
-            return START_NOT_STICKY
-        }
-        try {
-            start(resultCode, data)
-        } catch (e: Exception) {
-            Log.e(TAG, "start failed", e)
-            fail(e.message ?: e.javaClass.simpleName)
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> stopSelf()
+            ACTION_STOP_OCR -> {
+                stopOcr()
+                stopIfIdle()
+            }
+            ACTION_START_NETWORK -> {
+                enterForeground(withProjection = ocrRunning)
+                if (ensureOverlay()) startNetwork()
+                stopIfIdle()
+            }
+            ACTION_STOP_NETWORK -> {
+                stopNetwork()
+                stopIfIdle()
+            }
+            else -> {
+                // Android 14: startForeground(type=mediaProjection) must precede getMediaProjection.
+                enterForeground(withProjection = true)
+                @Suppress("DEPRECATION")
+                val data = intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
+                val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
+                if (data == null || projection != null) {
+                    if (data == null) report(getString(R.string.screen_err_permissions))
+                } else if (ensureOverlay()) {
+                    try {
+                        startOcr(resultCode, data)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "OCR start failed", e)
+                        stopOcr()
+                        report(e.message ?: e.javaClass.simpleName)
+                    }
+                }
+                stopIfIdle()
+            }
         }
         return START_NOT_STICKY
     }
 
-    private fun start(resultCode: Int, data: Intent) {
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val mp = mpm.getMediaProjection(resultCode, data) ?: error("MediaProjection denied")
-        projection = mp
-        // Must be registered before createVirtualDisplay on Android 14+.
-        mp.registerCallback(object : MediaProjection.Callback() {
-            override fun onStop() {
-                main.post { stopSelf() }
-            }
-        }, main)
-
-        worker = HandlerThread("screen-translator").apply { start() }
-        workerHandler = Handler(worker.looper)
-
-        val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getRealMetrics(metrics)
-        scale = minOf(1f, CAPTURE_MAX_WIDTH.toFloat() / metrics.widthPixels)
-        val capW = ((metrics.widthPixels * scale).toInt() / 2) * 2
-        val capH = ((metrics.heightPixels * scale).toInt() / 2) * 2
-        scale = capW.toFloat() / metrics.widthPixels
-
-        addOverlay(metrics.widthPixels, metrics.heightPixels)
-
-        val imageReader = ImageReader.newInstance(capW, capH, PixelFormat.RGBA_8888, 3)
-        reader = imageReader
-        virtualDisplay = mp.createVirtualDisplay(
-            "screen-translator", capW, capH, metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.surface, null, workerHandler,
-        )
-
-        val prefs = Prefs(this)
-        textTranslator = ScreenTextTranslator { prefs.serverUrl }.also { t ->
-            t.downloadModel { status -> ScreenTranslatorState.update { it.copy(model = status) } }
+    private fun ensureOverlay(): Boolean {
+        if (overlay != null) return true
+        if (!ScreenPermissions.canDrawOverlays(this)) {
+            report(getString(R.string.screen_err_overlay))
+            return false
         }
-        running = true
-        ScreenTranslatorState.update { ScreenTranslatorStatus(running = true, model = it.model) }
-        workerHandler.postDelayed(::tick, INTERVAL_MS)
-    }
-
-    private fun addOverlay(width: Int, height: Int) {
         val view = OverlayView(this)
         @Suppress("DEPRECATION")
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -136,7 +130,7 @@ class ScreenTranslatorService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
         val params = WindowManager.LayoutParams(
-            width, height, type,
+            metrics.widthPixels, metrics.heightPixels, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -144,23 +138,143 @@ class ScreenTranslatorService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 0
             title = "ScreenTranslatorOverlay"
         }
-        windowManager.addView(view, params)
-        overlay = view
+        return try {
+            windowManager.addView(view, params)
+            overlay = view
+            true
+        } catch (e: Exception) {
+            report(e.message ?: e.javaClass.simpleName)
+            false
+        }
+    }
+
+    // ---- Network source ----
+
+    private fun startNetwork() {
+        if (server != null) return
+        val prefs = Prefs(this)
+        val s = RemoteOverlayServer(
+            port = RemoteOverlayServer.PORT,
+            token = prefs.remoteToken,
+            screenSize = { metrics.widthPixels to metrics.heightPixels },
+            onFrame = { frame -> main.post { showRemote(frame) } },
+            onClear = { main.post { showRemote(RemoteFrame(emptyList(), 0)) } },
+            status = {
+                val st = ScreenTranslatorState.status.value
+                JSONObject().put("ocr", st.ocr).put("ocrBoxes", st.boxes).put("remoteBoxes", st.remoteBoxes)
+            },
+        )
+        try {
+            s.start()
+        } catch (e: Exception) {
+            report(getString(R.string.screen_err_port, RemoteOverlayServer.PORT, e.message ?: ""))
+            return
+        }
+        server = s
+        val urls = RemoteOverlayServer.lanAddresses().map { "http://$it:${RemoteOverlayServer.PORT}" }
+        ScreenTranslatorState.update { it.copy(network = true, networkUrls = urls, lastError = null) }
+    }
+
+    private fun showRemote(frame: RemoteFrame) {
+        val view = overlay ?: return
+        val w = metrics.widthPixels.toFloat()
+        val h = metrics.heightPixels.toFloat()
+        view.setRemoteBoxes(frame.boxes.map {
+            OverlayBox(RectF(it.x * w, it.y * h, (it.x + it.w) * w, (it.y + it.h) * h), it.text, it.lines, it.background, it.foreground)
+        })
+        val generation = ++remoteGeneration
+        if (frame.ttlMs > 0 && frame.boxes.isNotEmpty()) {
+            main.postDelayed({
+                if (generation == remoteGeneration) {
+                    overlay?.setRemoteBoxes(emptyList())
+                    ScreenTranslatorState.update { it.copy(remoteBoxes = 0) }
+                }
+            }, frame.ttlMs)
+        }
+        ScreenTranslatorState.update { it.copy(remoteBoxes = frame.boxes.size) }
+    }
+
+    private fun stopNetwork() {
+        server?.stop()
+        server = null
+        remoteGeneration++
+        overlay?.setRemoteBoxes(emptyList())
+        ScreenTranslatorState.update { it.copy(network = false, networkUrls = emptyList(), remoteBoxes = 0) }
+    }
+
+    // ---- OCR source ----
+
+    private fun startOcr(resultCode: Int, data: Intent) {
+        val mpm = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val mp = mpm.getMediaProjection(resultCode, data) ?: error("MediaProjection denied")
+        projection = mp
+        // Must be registered before createVirtualDisplay on Android 14+.
+        mp.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() {
+                main.post {
+                    stopOcr()
+                    stopIfIdle()
+                }
+            }
+        }, main)
+
+        val thread = HandlerThread("screen-translator").apply { start() }
+        val handler = Handler(thread.looper)
+        worker = thread
+        workerHandler = handler
+
+        scale = minOf(1f, CAPTURE_MAX_WIDTH.toFloat() / metrics.widthPixels)
+        val capW = ((metrics.widthPixels * scale).toInt() / 2) * 2
+        val capH = ((metrics.heightPixels * scale).toInt() / 2) * 2
+        scale = capW.toFloat() / metrics.widthPixels
+
+        val imageReader = ImageReader.newInstance(capW, capH, PixelFormat.RGBA_8888, 3)
+        reader = imageReader
+        virtualDisplay = mp.createVirtualDisplay(
+            "screen-translator", capW, capH, metrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.surface, null, handler,
+        )
+
+        val prefs = Prefs(this)
+        textTranslator = ScreenTextTranslator { prefs.serverUrl }.also { t ->
+            t.downloadModel { status -> ScreenTranslatorState.update { it.copy(model = status) } }
+        }
+        lastSignature = null
+        lastCleanAt = 0L
+        ocrRunning = true
+        ScreenTranslatorState.update { it.copy(ocr = true, boxes = 0, frames = 0, ocrRuns = 0, lastError = null) }
+        handler.postDelayed(::tick, INTERVAL_MS)
+    }
+
+    private fun stopOcr() {
+        ocrRunning = false
+        worker?.quitSafely()
+        worker = null
+        workerHandler = null
+        virtualDisplay?.release()
+        virtualDisplay = null
+        reader?.close()
+        reader = null
+        projection?.stop()
+        projection = null
+        textTranslator?.close()
+        textTranslator = null
+        overlay?.setOcrBoxes(emptyList())
+        ScreenTranslatorState.update { it.copy(ocr = false, boxes = 0) }
+        if (server != null) enterForeground(withProjection = false)
     }
 
     private fun tick() {
-        if (!running) return
+        if (!ocrRunning) return
         try {
             step()
         } catch (e: Exception) {
             Log.w(TAG, "frame failed", e)
             ScreenTranslatorState.update { it.copy(lastError = e.message ?: e.javaClass.simpleName) }
         }
-        if (running) workerHandler.postDelayed(::tick, INTERVAL_MS)
+        if (ocrRunning) workerHandler?.postDelayed(::tick, INTERVAL_MS)
     }
 
     private fun step() {
@@ -196,8 +310,8 @@ class ScreenTranslatorService : Service() {
                 it.text, it.lines, it.background, it.foreground,
             )
         }
-        if (!running) return
-        onMain { overlay?.setBoxes(boxes) }
+        if (!ocrRunning) return
+        onMain { overlay?.setOcrBoxes(boxes) }
         settleAndDrain()
         ScreenTranslatorState.update { it.copy(boxes = boxes.size, ocrRuns = it.ocrRuns + 1, lastError = null) }
     }
@@ -238,7 +352,9 @@ class ScreenTranslatorService : Service() {
         return result!!.getOrThrow()
     }
 
-    private fun startInForeground() {
+    // ---- Lifecycle ----
+
+    private fun enterForeground(withProjection: Boolean) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
@@ -249,43 +365,54 @@ class ScreenTranslatorService : Service() {
         val stop = PendingIntent.getService(
             this, 1, Intent(this, ScreenTranslatorService::class.java).setAction(ACTION_STOP), immutable,
         )
-        val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), immutable)
+        val open = PendingIntent.getActivity(
+            this, 2,
+            Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN_SCREEN_MODE, true),
+            immutable,
+        )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(getString(R.string.screen_notification_title))
             .setContentText(getString(R.string.screen_notification_text))
             .setContentIntent(open)
-            .addAction(0, getString(R.string.screen_stop), stop)
+            .addAction(0, getString(R.string.screen_stop_all), stop)
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        when {
+            Build.VERSION.SDK_INT >= 34 -> {
+                var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                if (withProjection) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                startForeground(NOTIFICATION_ID, notification, type)
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && withProjection ->
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            else -> startForeground(NOTIFICATION_ID, notification)
         }
     }
 
-    private fun fail(message: String) {
-        ScreenTranslatorState.update { it.copy(running = false, lastError = message) }
-        stopSelf()
+    private fun stopIfIdle() {
+        if (projection == null && server == null) stopSelf()
+    }
+
+    private fun report(message: String) {
+        ScreenTranslatorState.update { it.copy(lastError = message) }
     }
 
     override fun onDestroy() {
-        running = false
-        if (::worker.isInitialized) worker.quitSafely()
-        virtualDisplay?.release()
-        reader?.close()
-        projection?.stop()
+        stopNetwork()
+        stopOcr()
         overlay?.let { runCatching { windowManager.removeView(it) } }
-        textTranslator?.close()
+        overlay = null
         lastVisible?.recycle()
-        projection = null
-        ScreenTranslatorState.update { it.copy(running = false, boxes = 0) }
+        lastVisible = null
         super.onDestroy()
     }
 
     companion object {
         const val ACTION_STOP = "com.qquaq.livetranslatetv.screen.STOP"
+        const val ACTION_STOP_OCR = "com.qquaq.livetranslatetv.screen.STOP_OCR"
+        const val ACTION_START_NETWORK = "com.qquaq.livetranslatetv.screen.START_NETWORK"
+        const val ACTION_STOP_NETWORK = "com.qquaq.livetranslatetv.screen.STOP_NETWORK"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         private const val TAG = "ScreenTranslator"

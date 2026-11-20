@@ -24,17 +24,23 @@ class OverlayView(context: Context) : View(context) {
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD }
     private val minTextPx = 10f * resources.displayMetrics.density
-    private var boxes: List<OverlayBox> = emptyList()
+    private var ocrBoxes: List<OverlayBox> = emptyList()
+    private var remoteBoxes: List<OverlayBox> = emptyList()
 
-    val hasBoxes: Boolean get() = boxes.isNotEmpty()
+    val hasBoxes: Boolean get() = ocrBoxes.isNotEmpty() || remoteBoxes.isNotEmpty()
 
-    fun setBoxes(newBoxes: List<OverlayBox>) {
-        boxes = newBoxes
+    fun setOcrBoxes(boxes: List<OverlayBox>) {
+        ocrBoxes = boxes
+        invalidate()
+    }
+
+    fun setRemoteBoxes(boxes: List<OverlayBox>) {
+        remoteBoxes = boxes
         invalidate()
     }
 
     override fun onDraw(canvas: Canvas) {
-        for (box in boxes) {
+        for (box in ocrBoxes + remoteBoxes) {
             val pad = box.rect.height() * 0.08f + 2f
             val area = RectF(box.rect.left - pad, box.rect.top - pad, box.rect.right + pad, box.rect.bottom + pad)
             bgPaint.color = box.background

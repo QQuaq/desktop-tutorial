@@ -29,6 +29,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    testOptions {
+        // android.graphics.Color is a stub on the JVM; colour values are irrelevant to these tests.
+        unitTests.isReturnDefaultValues = true
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -51,4 +55,5 @@ dependencies {
     implementation("com.google.mlkit:translate:17.0.3")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

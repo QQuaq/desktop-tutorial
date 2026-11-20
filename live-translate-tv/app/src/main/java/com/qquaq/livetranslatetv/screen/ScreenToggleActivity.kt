@@ -21,7 +21,7 @@ class ScreenToggleActivity : ComponentActivity() {
     private val capture = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
         if (result.resultCode == Activity.RESULT_OK && data != null) {
-            ScreenPermissions.startService(this, result.resultCode, data)
+            ScreenPermissions.startOcr(this, result.resultCode, data)
             Toast.makeText(this, R.string.screen_started_toast, Toast.LENGTH_SHORT).show()
             moveTaskToBack(true)
         }
@@ -35,7 +35,7 @@ class ScreenToggleActivity : ComponentActivity() {
         if (savedInstanceState != null) return
         when {
             ScreenTranslatorState.status.value.running -> {
-                ScreenPermissions.stopService(this)
+                ScreenPermissions.stopAll(this)
                 Toast.makeText(this, R.string.screen_stopped_toast, Toast.LENGTH_SHORT).show()
                 finish()
             }

@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
     private val screenCapture = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
         if (result.resultCode == Activity.RESULT_OK && data != null) {
-            ScreenPermissions.startService(this, result.resultCode, data)
+            ScreenPermissions.startOcr(this, result.resultCode, data)
         }
     }
 
@@ -81,8 +81,11 @@ class MainActivity : ComponentActivity() {
                         ScreenModeScreen(
                             overlayGranted = overlayGranted,
                             overlayHint = overlayHint,
+                            remoteToken = vm.prefs.remoteToken,
                             onStart = ::startScreenTranslator,
-                            onStop = { ScreenPermissions.stopService(this) },
+                            onStop = { ScreenPermissions.stopOcr(this) },
+                            onStartNetwork = ::startNetworkReceiver,
+                            onStopNetwork = { ScreenPermissions.stopNetwork(this) },
                             onOpenOverlaySettings = {
                                 overlayHint = if (ScreenPermissions.openOverlaySettings(this)) null
                                 else getString(R.string.screen_overlay_settings_missing)
@@ -134,6 +137,16 @@ class MainActivity : ComponentActivity() {
         } else {
             launchCaptureConsent()
         }
+    }
+
+    private fun startNetworkReceiver() {
+        overlayGranted = ScreenPermissions.canDrawOverlays(this)
+        if (!overlayGranted) {
+            overlayHint = getString(R.string.screen_err_overlay)
+            return
+        }
+        overlayHint = null
+        ScreenPermissions.startNetwork(this)
     }
 
     private fun toggleMic() {

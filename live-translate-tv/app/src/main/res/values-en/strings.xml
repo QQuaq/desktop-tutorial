@@ -66,9 +66,19 @@
     <string name="screen_err_overlay">The \"display over other apps\" permission is required first.</string>
     <string name="screen_err_no_consent_dialog">This TV has no screen-capture consent dialog. Try the PROJECT_MEDIA adb command from the README.</string>
     <string name="screen_err_permissions">Screen capture or overlay permission is missing.</string>
-    <string name="screen_limits">Limits: protected apps (FLAG_SECURE / DRM, e.g. Netflix, Disney+) and HDMI inputs (e.g. a PS5 on the TV\'s HDMI port) usually capture as black, so they cannot be translated. Translation boxes briefly (~0.1 s) disappear while a frame is captured.</string>
+    <string name="screen_limits">Limits: protected apps (FLAG_SECURE / DRM, e.g. Netflix, Disney+) and HDMI inputs (e.g. a PS5 on the TV) capture as black, so mode 1 cannot read them; use mode 2 (network) for HDMI. Translation boxes briefly (~0.1 s) disappear while a frame is captured.</string>
     <string name="screen_notification_title">Screen translation is on</string>
     <string name="screen_notification_text">English text is shown in Turkish.</string>
     <string name="screen_started_toast">Screen translation started</string>
     <string name="screen_stopped_toast">Screen translation stopped</string>
+    <string name="screen_stop_all">Stop all</string>
+    <string name="screen_err_port">Network receiver could not open port %1$d: %2$s</string>
+    <string name="screen_section_ocr">1) Text in TV apps (on-device OCR)</string>
+    <string name="screen_section_network">2) Network receiver (PC / phone, experimental)</string>
+    <string name="screen_network_desc">An HDMI input (e.g. a PS5) cannot be captured from inside the TV, but it can be drawn over. While this receiver is on, a PC or phone on the same Wi‑Fi sends translated text and the TV draws it over the HDMI picture. No screen-capture consent needed.</string>
+    <string name="screen_network_start">Start network receiver</string>
+    <string name="screen_network_stop">Stop network receiver</string>
+    <string name="screen_network_address">Address:</string>
+    <string name="screen_network_token">Pairing code (X-Token):</string>
+    <string name="screen_stats_remote">Boxes received over network: %1$d</string>
 </resources>

@@ -66,9 +66,19 @@
     <string name="screen_err_overlay">Önce \"diğer uygulamaların üzerinde gösterme\" izni gerekli.</string>
     <string name="screen_err_no_consent_dialog">Bu TV\'de ekran yakalama onay penceresi yok. README\'deki PROJECT_MEDIA adb komutunu deneyin.</string>
     <string name="screen_err_permissions">Ekran yakalama ya da üstte gösterme izni eksik.</string>
-    <string name="screen_limits">Sınırlar: Netflix, Disney+ gibi korumalı (FLAG_SECURE / DRM) uygulamalar ve HDMI girişleri (ör. TV\'nin HDMI portuna bağlı PS5) ekran yakalamada genellikle siyah görünür; bunlarda çeviri yapılamaz. Yakalama sırasında çeviri kutuları bir an (~0,1 sn) kaybolup geri gelir.</string>
+    <string name="screen_limits">Sınırlar: Netflix, Disney+ gibi korumalı (FLAG_SECURE / DRM) uygulamalar ve HDMI girişleri (ör. TV\'ye bağlı PS5) ekran yakalamada siyah görünür, bu yüzden 1. modda okunamaz; HDMI için 2. mod (ağdan çeviri) kullanılmalı. Yakalama sırasında çeviri kutuları bir an (~0,1 sn) kaybolup geri gelir.</string>
     <string name="screen_notification_title">Ekran çevirisi açık</string>
     <string name="screen_notification_text">İngilizce yazılar Türkçe olarak gösteriliyor.</string>
     <string name="screen_started_toast">Ekran çevirisi başladı</string>
     <string name="screen_stopped_toast">Ekran çevirisi durduruldu</string>
+    <string name="screen_stop_all">Tümünü durdur</string>
+    <string name="screen_err_port">Ağ alıcısı %1$d portunu açamadı: %2$s</string>
+    <string name="screen_section_ocr">1) TV uygulamalarındaki yazılar (cihaz içi OCR)</string>
+    <string name="screen_section_network">2) Ağdan çeviri alıcı (PC / telefon, deneysel)</string>
+    <string name="screen_network_desc">HDMI girişi (ör. PS5) TV içinden yakalanamaz ama üzerine çizilebilir. Bu alıcı açıkken aynı Wi‑Fi\'deki bir PC ya da telefon çevrilmiş metni gönderir, TV onu HDMI görüntüsünün üstüne çizer. Ekran yakalama izni gerekmez.</string>
+    <string name="screen_network_start">Ağ alıcısını aç</string>
+    <string name="screen_network_stop">Ağ alıcısını kapat</string>
+    <string name="screen_network_address">Adres:</string>
+    <string name="screen_network_token">Eşleştirme kodu (X-Token):</string>
+    <string name="screen_stats_remote">Ağdan gelen kutu: %1$d</string>
 </resources>
