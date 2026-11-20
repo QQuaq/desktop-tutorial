@@ -1,0 +1,72 @@
+name: Build ps5-subtitle-pc (Windows exe)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ps5-subtitle-pc/**"
+      - ".github/workflows/ps5-subtitle-pc.yml"
+  pull_request:
+    paths:
+      - "ps5-subtitle-pc/**"
+      - ".github/workflows/ps5-subtitle-pc.yml"
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ps5-subtitle-pc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --windowed --name PS5Altyazi
+          --collect-all rapidocr_onnxruntime
+          --add-data "ps5sub/assets;ps5sub/assets"
+          run_app.py
+
+      - name: Slim bundle (video files decode via Media Foundation; capture cards use DirectShow)
+        shell: pwsh
+        run: |
+          Remove-Item dist/PS5Altyazi/_internal/cv2/opencv_videoio_ffmpeg*.dll
+          Remove-Item dist/PS5Altyazi/_internal/PIL/_avif*.pyd
+
+      - name: Self-test packaged exe
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/PS5Altyazi/PS5Altyazi.exe -ArgumentList "--self-test" -Wait -PassThru
+          Get-Content "$env:APPDATA/PS5Altyazi/ps5altyazi.log"
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Window capture smoke test
+        run: python tools/windows_smoke.py
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-captures
+          path: ps5-subtitle-pc/smoke_*.png
+
+      - name: Add launcher and guide
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist/OKU-BENI.md
+          Copy-Item baslat.bat dist/baslat.bat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PS5Altyazi-windows
+          path: ps5-subtitle-pc/dist/
