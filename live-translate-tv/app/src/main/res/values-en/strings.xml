@@ -41,4 +41,34 @@
     <string name="save">Save</string>
     <string name="back">Back</string>
     <string name="saved">Saved</string>
+
+    <string name="screen_mode_button">Screen translation</string>
+    <string name="screen_mode_title">Screen translation</string>
+    <string name="screen_toggle_label">Screen Translate</string>
+    <string name="screen_mode_desc">Runs in the background: whenever English text appears on the TV screen, the Turkish translation is drawn over the same spot. The remote keeps controlling the app underneath. Use the \"Screen Translate\" tile on the home screen as a quick on/off toggle.</string>
+    <string name="screen_start">Start screen translation</string>
+    <string name="screen_stop">Stop screen translation</string>
+    <string name="screen_open_overlay_settings">Open overlay permission</string>
+    <string name="screen_status_overlay">Display over other apps:</string>
+    <string name="screen_status_service">Service:</string>
+    <string name="screen_status_model">On-device translation model (EN→TR):</string>
+    <string name="screen_yes">Granted</string>
+    <string name="screen_no">Missing</string>
+    <string name="screen_running">Running</string>
+    <string name="screen_stopped">Stopped</string>
+    <string name="screen_model_unknown">Downloaded on first start (~30 MB, once)</string>
+    <string name="screen_model_downloading">Downloading… (online translation is used meanwhile)</string>
+    <string name="screen_model_ready">Ready</string>
+    <string name="screen_model_failed">Download failed — using online translation</string>
+    <string name="screen_stats">OCR passes: %1$d · translation boxes on screen: %2$d</string>
+    <string name="screen_overlay_adb_help">If this TV has no permission screen, run this once from a computer:</string>
+    <string name="screen_overlay_settings_missing">This TV has no overlay permission screen; use the adb command below.</string>
+    <string name="screen_err_overlay">The \"display over other apps\" permission is required first.</string>
+    <string name="screen_err_no_consent_dialog">This TV has no screen-capture consent dialog. Try the PROJECT_MEDIA adb command from the README.</string>
+    <string name="screen_err_permissions">Screen capture or overlay permission is missing.</string>
+    <string name="screen_limits">Limits: protected apps (FLAG_SECURE / DRM, e.g. Netflix, Disney+) and HDMI inputs (e.g. a PS5 on the TV\'s HDMI port) usually capture as black, so they cannot be translated. Translation boxes briefly (~0.1 s) disappear while a frame is captured.</string>
+    <string name="screen_notification_title">Screen translation is on</string>
+    <string name="screen_notification_text">English text is shown in Turkish.</string>
+    <string name="screen_started_toast">Screen translation started</string>
+    <string name="screen_stopped_toast">Screen translation stopped</string>
 </resources>

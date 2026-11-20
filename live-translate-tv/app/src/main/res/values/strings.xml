@@ -41,4 +41,34 @@
     <string name="save">Kaydet</string>
     <string name="back">Geri</string>
     <string name="saved">Kaydedildi</string>
+
+    <string name="screen_mode_button">Ekran çevirisi</string>
+    <string name="screen_mode_title">Ekran çevirisi</string>
+    <string name="screen_toggle_label">Ekran Çevirisi</string>
+    <string name="screen_mode_desc">Arka planda çalışır: TV ekranında İngilizce yazı göründüğünde, Türkçe çevirisini aynı yerin üzerine çizer. Kumanda alttaki uygulamayı kontrol etmeye devam eder. Ana ekrandaki \"Ekran Çevirisi\" kutucuğu ile hızlıca açıp kapatabilirsiniz.</string>
+    <string name="screen_start">Ekran çevirisini başlat</string>
+    <string name="screen_stop">Ekran çevirisini durdur</string>
+    <string name="screen_open_overlay_settings">Üstte gösterme iznini aç</string>
+    <string name="screen_status_overlay">Diğer uygulamaların üzerinde gösterme izni:</string>
+    <string name="screen_status_service">Servis:</string>
+    <string name="screen_status_model">Cihaz içi çeviri modeli (EN→TR):</string>
+    <string name="screen_yes">Var</string>
+    <string name="screen_no">Yok</string>
+    <string name="screen_running">Çalışıyor</string>
+    <string name="screen_stopped">Durdu</string>
+    <string name="screen_model_unknown">Başlatınca indirilecek (~30 MB, bir kez)</string>
+    <string name="screen_model_downloading">İndiriliyor… (bu sırada çevrimiçi çeviri kullanılır)</string>
+    <string name="screen_model_ready">Hazır</string>
+    <string name="screen_model_failed">İndirilemedi — çevrimiçi çeviri kullanılıyor</string>
+    <string name="screen_stats">OCR taraması: %1$d · ekrandaki çeviri kutusu: %2$d</string>
+    <string name="screen_overlay_adb_help">Bu TV\'de izin ekranı yoksa, bilgisayardan bir kez şu komutu çalıştırın:</string>
+    <string name="screen_overlay_settings_missing">Bu TV\'de izin ayar ekranı bulunamadı; aşağıdaki adb komutunu kullanın.</string>
+    <string name="screen_err_overlay">Önce \"diğer uygulamaların üzerinde gösterme\" izni gerekli.</string>
+    <string name="screen_err_no_consent_dialog">Bu TV\'de ekran yakalama onay penceresi yok. README\'deki PROJECT_MEDIA adb komutunu deneyin.</string>
+    <string name="screen_err_permissions">Ekran yakalama ya da üstte gösterme izni eksik.</string>
+    <string name="screen_limits">Sınırlar: Netflix, Disney+ gibi korumalı (FLAG_SECURE / DRM) uygulamalar ve HDMI girişleri (ör. TV\'nin HDMI portuna bağlı PS5) ekran yakalamada genellikle siyah görünür; bunlarda çeviri yapılamaz. Yakalama sırasında çeviri kutuları bir an (~0,1 sn) kaybolup geri gelir.</string>
+    <string name="screen_notification_title">Ekran çevirisi açık</string>
+    <string name="screen_notification_text">İngilizce yazılar Türkçe olarak gösteriliyor.</string>
+    <string name="screen_started_toast">Ekran çevirisi başladı</string>
+    <string name="screen_stopped_toast">Ekran çevirisi durduruldu</string>
 </resources>

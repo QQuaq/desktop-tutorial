@@ -4,5 +4,10 @@
         <item name="android:windowBackground">@color/background</item>
         <item name="android:colorBackground">@color/background</item>
     </style>
+
+    <style name="Theme.LiveTranslateTv.Invisible" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
     <color name="background">#0B1020</color>
 </resources>

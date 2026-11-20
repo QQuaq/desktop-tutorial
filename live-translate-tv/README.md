@@ -1,13 +1,68 @@
 # Canlı Çeviri TV — Android TV için canlı İngilizce → Türkçe altyazı
 
-`live-translate/` web uygulamasının Android TV sürümü. İngilizce konuşmayı TV'nin / kumandanın
-mikrofonundan tanır, Türkçe altyazıyı büyük yazıyla ekranda gösterir, isterseniz sesli okur.
+`live-translate/` web uygulamasının Android TV sürümü. İki mod içerir:
+
+- **Ekran çevirisi (arka plan):** TV ekranında görünen İngilizce yazıların üzerine Türkçe çevirisini çizer.
+- **Canlı altyazı (konuşma):** İngilizce konuşmayı TV'nin / kumandanın mikrofonundan tanır, Türkçe altyazıyı
+  büyük yazıyla ekranda gösterir, isterseniz sesli okur.
 
 - Kotlin + Jetpack Compose for TV, minSdk 21 (Android 5.0+), ana ekranda (Leanback) banner ile görünür.
 - Tamamen kumandayla (D-pad) kullanılır. Kumandadaki **mikrofon / arama** tuşu dinlemeyi açar-kapatır
   (sistem asistanı tuşu yakalamıyorsa).
 - Arayüz varsayılan **Türkçe**; Ayarlar'dan English seçilebilir.
 - API anahtarı **yok**: web uygulamasıyla aynı ücretsiz çeviri zinciri kullanılır.
+
+## Ekran çevirisi modu (arka planda, ekrandaki İngilizce yazılar)
+
+Ana ekrandaki **Ekran çevirisi** düğmesi ya da TV ana ekranındaki ayrı **Ekran Çevirisi** kutucuğu (hızlı aç/kapat)
+bir arka plan servisi başlatır. Ekranda İngilizce yazı göründüğünde Türkçe çevirisini **aynı yerin üzerine**,
+opak bir kutu içinde çizer. Kumanda alttaki uygulamayı kontrol etmeye devam eder.
+
+Nasıl çalışır:
+
+1. **MediaProjection** ile ekran ~0,8 sn'de bir 1280 px genişliğe küçültülüp yakalanır; ekran değişmediyse
+   (kare gelmediyse ya da 96×54 küçük resim aynıysa) OCR atlanır.
+2. **ML Kit Text Recognition (Latin, cihaz içi, model APK içinde)** metin bloklarını ve konumlarını bulur.
+   Türkçe karakter içeren, rakam ağırlıklı ya da İngilizce olmayan bloklar atlanır.
+3. **ML Kit Translation EN→TR (cihaz içi)**: model ilk başlatmada bir kez indirilir (~30 MB). İnene kadar
+   (ya da hata olursa) uygulamanın mevcut çevrimiçi zinciri kullanılır (PC sunucusu → Google → Lingva → MyMemory).
+   Çeviriler önbelleğe alınır.
+4. **TYPE_APPLICATION_OVERLAY** penceresi (odak almaz, dokunma almaz) her bloğun üstüne, arka plan renginden
+   örneklenmiş opak bir kutu ve uygun boyutta Türkçe metin çizer.
+5. Kendi kutularımızı yeniden okuyup çevirmemek için: yakalama anında overlay ~0,1 sn gizlenir, temiz kare alınır,
+   sonra geri gösterilir; kendi değişikliklerimizin ürettiği kareler atılır. Ayrıca son üretilen Türkçe metinler
+   OCR sonuçlarından filtrelenir.
+
+### İzinler (bir kez)
+
+**Diğer uygulamaların üzerinde gösterme (overlay).** Uygulama içinden *Üstte gösterme iznini aç* düğmesi
+ayar sayfasını açmayı dener. Çoğu Android TV'de bu sayfa **yoktur**; bilgisayardan bir kez:
+
+```bash
+adb connect <TV-IP>:5555
+adb shell appops set com.qquaq.livetranslatetv SYSTEM_ALERT_WINDOW allow
+```
+
+**Ekran yakalama onayı.** Her başlatmada sistem "kayıt/yayın başlatılsın mı?" penceresi çıkar (Android
+güvenlik kuralı; Android 14+ onay tekrar kullanılamaz). Pencereyi atlamak ya da penceresi olmayan TV'ler için:
+
+```bash
+adb shell appops set com.qquaq.livetranslatetv PROJECT_MEDIA allow
+```
+
+Android 13+ ön plan servis bildirimi için bildirim izni de sorulur (reddedilse de servis çalışır).
+
+### Sınırlar — mutlaka okuyun
+
+- **Korumalı içerik siyah görünür:** Netflix, Disney+, Prime Video gibi `FLAG_SECURE` / DRM kullanan uygulamalar
+  ekran yakalamada siyah gelir → o uygulamalarda çeviri **yapılamaz**.
+- **HDMI girişleri (ör. TV'ye bağlı PS5, uydu alıcısı):** TV'lerin çoğunda HDMI görüntüsü HDCP / donanım katmanıyla
+  gösterilir ve MediaProjection'da siyah görünür → çoğu TV'de **çalışmaz**. (Bazı TV'lerde HDCP kapalı kaynaklar
+  görünebilir; cihaza bağlı.)
+- Video oynatılırken her karede ekran değiştiği için OCR sürekli çalışır ve kutular saniyede bir kısa süre yanıp söner.
+- OCR yalnızca Latin alfabesi; çok küçük, stilize ya da hareketli yazılar kaçabilir. Kutular çeviri uzunsa aşağı doğru uzar.
+- Düşük güçlü TV işlemcilerinde OCR + çeviri 0,3–1 sn sürebilir; bu sürede yeni yazı gecikmeli görünür.
+- APK, OCR modelini tüm işlemci türleri için içerdiğinden ~58 MB'dır.
 
 ## Nasıl çalışır (web sürümüyle eşleşme)
 
