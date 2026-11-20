@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Canlı Çeviri TV</string>
+    <string name="title">Canlı Türkçe altyazı</string>
+    <string name="subtitle">İngilizce konuşma kumandanın ya da TV\'nin mikrofonundan tanınır; Türkçe altyazı ekranda görünür.</string>
+
+    <string name="mic_start">Mikrofonu aç</string>
+    <string name="mic_stop">Durdur</string>
+    <string name="clear">Temizle</string>
+    <string name="speak_on">Sesli okuma: Açık</string>
+    <string name="speak_off">Sesli okuma: Kapalı</string>
+    <string name="settings">Ayarlar</string>
+    <string name="subtitle_label">Altyazı</string>
+    <string name="english_label">İngilizce tanıma metni</string>
+    <string name="empty_listening">Konuşun, Türkçe altyazı burada görünecek…</string>
+    <string name="empty_idle">Mikrofonu açıp İngilizce konuşun.</string>
+    <string name="hint">İpucu: Kumandadaki mikrofon/arama tuşu da dinlemeyi açar ve kapatır.</string>
+
+    <string name="status_listening">Dinleniyor — İngilizce konuşun</string>
+    <string name="status_listening_short">Dinleniyor</string>
+    <string name="status_translating">Çevriliyor…</string>
+    <string name="status_stopped">Durduruldu</string>
+    <string name="status_no_speech">Ses algılanmadı, dinlemeye devam ediliyor…</string>
+    <string name="err_permission">Mikrofon izni verilmedi.</string>
+    <string name="err_unsupported">Bu cihazda konuşma tanıma servisi yok. Google uygulamasının yüklü olduğundan emin olun.</string>
+    <string name="err_recognition">Tanıma hatası: %1$s</string>
+    <string name="err_translate">Çeviri kotası veya servis hatası. Biraz bekleyip tekrar deneyin.</string>
+    <string name="err_tts">Türkçe ses motoru bulunamadı; sesli okuma kullanılamıyor.</string>
+
+    <string name="settings_title">Ayarlar</string>
+    <string name="server_url_label">PC çeviri sunucusu (isteğe bağlı)</string>
+    <string name="server_url_help">live-translate sunucusunun adresi, ör. http://192.168.1.20:3456 — boş bırakılırsa TV çeviri servislerine doğrudan bağlanır.</string>
+    <string name="server_url_placeholder">http://192.168.x.x:3456</string>
+    <string name="server_test">Sunucuyu dene</string>
+    <string name="server_test_ok">Sunucu çalışıyor: \"%1$s\"</string>
+    <string name="server_test_fail">Sunucuya ulaşılamadı.</string>
+    <string name="server_test_testing">Deneniyor…</string>
+    <string name="language_label">Arayüz dili</string>
+    <string name="language_tr">Türkçe</string>
+    <string name="language_en">English</string>
+    <string name="save">Kaydet</string>
+    <string name="back">Geri</string>
+    <string name="saved">Kaydedildi</string>
+</resources>
