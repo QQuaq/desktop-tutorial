@@ -42,7 +42,7 @@ def main() -> int:
         frame = src.grab()
         root.update()
         src.close()
-        text = ocr.read(crop_region(frame, [0.10, 0.72, 0.80, 0.25])).text if frame is not None else ""
+        text = ocr.read(crop_region(frame, [0.15, 0.72, 0.70, 0.25])).text if frame is not None else ""
         ok = "marina" in text.lower()
         print(f"{method}: frame={None if frame is None else frame.shape} ok={ok} text={text!r}")
         if frame is not None:

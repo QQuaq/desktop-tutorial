@@ -18,6 +18,12 @@ class CaptureError(Exception):
     pass
 
 
+def _new_mss():
+    import mss
+
+    return mss.MSS() if hasattr(mss, "MSS") else mss.mss()
+
+
 def trim_black_bars(frame: np.ndarray, aspect: float = 16 / 9) -> np.ndarray:
     """Remote Play / chiaki letterbox the 16:9 picture inside their window; cut those bars off."""
     h, w = frame.shape[:2]
@@ -61,10 +67,9 @@ class WindowSource(Source):
         self._sct = None
 
     def _screen(self) -> np.ndarray | None:
-        import mss
 
         if self._sct is None:
-            self._sct = mss.mss()
+            self._sct = _new_mss()
         x, y, w, h = winapi.client_rect(self.hwnd)
         if w <= 0 or h <= 0:
             return None
@@ -92,9 +97,8 @@ class WindowSource(Source):
 
 class ScreenSource(Source):
     def __init__(self, monitor: int = 1):
-        import mss
 
-        self._sct = mss.mss()
+        self._sct = _new_mss()
         if monitor >= len(self._sct.monitors):
             monitor = 1
         self.monitor = self._sct.monitors[monitor]

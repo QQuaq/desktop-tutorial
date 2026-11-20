@@ -48,14 +48,19 @@ jobs:
       - name: Window capture smoke test
         run: python tools/windows_smoke.py
 
-      - name: Zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-captures
+          path: ps5-subtitle-pc/smoke_*.png
+
+      - name: Add launcher and guide
         shell: pwsh
         run: |
           Copy-Item README.md dist/OKU-BENI.md
           Copy-Item baslat.bat dist/baslat.bat
-          Compress-Archive -Path dist/* -DestinationPath PS5Altyazi-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: PS5Altyazi-windows
-          path: ps5-subtitle-pc/PS5Altyazi-windows.zip
+          path: ps5-subtitle-pc/dist/

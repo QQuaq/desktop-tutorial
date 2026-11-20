@@ -14,7 +14,7 @@ from .pipeline import Pipeline
 from .receiver import ReceiverError, TvReceiver
 from .translate import Translator
 
-DEFAULT_REGION = [0.10, 0.72, 0.80, 0.25]
+DEFAULT_REGION = [0.15, 0.72, 0.70, 0.25]
 SOURCES = [
     ("window", "PS Remote Play / chiaki-ng penceresi"),
     ("card", "Yakalama kartı (capture card)"),

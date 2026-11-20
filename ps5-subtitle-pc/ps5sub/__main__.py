@@ -26,7 +26,7 @@ def self_test() -> int:
     from .translate import TranslationError, Translator
 
     frame = np.asarray(Image.open(_assets() / "selftest.png").convert("RGB"))
-    text = OcrEngine().read(crop_region(frame, [0.10, 0.72, 0.80, 0.25])).text
+    text = OcrEngine().read(crop_region(frame, [0.15, 0.72, 0.70, 0.25])).text
     print(f"OCR: {text!r}")
     ok = "marina" in text.lower()
     try:

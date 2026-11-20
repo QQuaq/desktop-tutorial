@@ -23,7 +23,7 @@ class Config:
     source_value: str = "PS Remote Play"
     capture_method: str = "auto"  # auto | printwindow | screen
     # subtitle region, fractions of the game picture: x, y, w, h
-    region: list[float] = field(default_factory=lambda: [0.10, 0.72, 0.80, 0.25])
+    region: list[float] = field(default_factory=lambda: [0.15, 0.72, 0.70, 0.25])
     fps: float = 4.0
     placement: str = "over"  # over: on top of the English text; bottom: fixed strip at the bottom
     ttl_ms: int = 15000
