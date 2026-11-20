@@ -278,8 +278,11 @@ class ScreenTranslatorService : Service() {
         try {
             step()
         } catch (e: Exception) {
-            Log.w(TAG, "frame failed", e)
-            ScreenTranslatorState.update { it.copy(lastError = e.message ?: e.javaClass.simpleName) }
+            // Stopping closes the reader and ML Kit clients under a running frame; that is not an error.
+            if (ocrRunning) {
+                Log.w(TAG, "frame failed", e)
+                ScreenTranslatorState.update { it.copy(lastError = e.message ?: e.javaClass.simpleName) }
+            }
         }
         if (ocrRunning) workerHandler?.postDelayed(::tick, INTERVAL_MS)
     }
