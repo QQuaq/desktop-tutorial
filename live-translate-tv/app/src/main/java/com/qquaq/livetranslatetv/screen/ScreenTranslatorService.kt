@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
@@ -61,6 +62,7 @@ class ScreenTranslatorService : Service() {
     private var lastVisible: Bitmap? = null
     private var lastSignature: IntArray? = null
     private var lastCleanAt = 0L
+    private var recheckAfterOcr = false
 
     // Network source
     private var server: RemoteOverlayServer? = null
@@ -129,13 +131,17 @@ class ScreenTranslatorService : Service() {
         } else {
             WindowManager.LayoutParams.TYPE_PHONE
         }
+        // Android 12+ caps a NOT_TOUCHABLE overlay at 80% opacity, so the English would show through the
+        // boxes. Remote keys still reach the app below via NOT_FOCUSABLE; only touch/mouse would be blocked,
+        // which TVs do not use, so the cap is avoided there.
+        val opaque = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        if (!opaque) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         val params = WindowManager.LayoutParams(
-            metrics.widthPixels, metrics.heightPixels, type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT,
+            metrics.widthPixels, metrics.heightPixels, type, flags, PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             title = "ScreenTranslatorOverlay"
@@ -243,6 +249,7 @@ class ScreenTranslatorService : Service() {
         }
         lastSignature = null
         lastCleanAt = 0L
+        recheckAfterOcr = false
         ocrRunning = true
         ScreenTranslatorState.update { it.copy(ocr = true, boxes = 0, frames = 0, ocrRuns = 0, lastError = null) }
         handler.postDelayed(::tick, INTERVAL_MS)
@@ -291,9 +298,13 @@ class ScreenTranslatorService : Service() {
         if (image == null && now - lastCleanAt < REFRESH_MS) return
 
         val hasBoxes = onMain { overlay?.hasBoxes == true }
+        // With boxes shown, a refresh means hiding them (a visible blink). A static screen sends no frames,
+        // so only re-check once after an OCR run, in case the screen changed while it was running.
+        if (image == null && hasBoxes && !recheckAfterOcr) return
         val clean = if (hasBoxes) captureWithoutOverlay() else lastVisible?.copy(Bitmap.Config.ARGB_8888, false)
         clean ?: return
         lastCleanAt = now
+        recheckAfterOcr = false
 
         val signature = Frames.signature(clean)
         if (!changed(lastSignature, signature)) {
@@ -313,6 +324,7 @@ class ScreenTranslatorService : Service() {
         if (!ocrRunning) return
         onMain { overlay?.setOcrBoxes(boxes) }
         settleAndDrain()
+        recheckAfterOcr = true
         ScreenTranslatorState.update { it.copy(boxes = boxes.size, ocrRuns = it.ocrRuns + 1, lastError = null) }
     }
 
@@ -327,10 +339,18 @@ class ScreenTranslatorService : Service() {
         return bmp
     }
 
-    /** Drops the frames produced by our own overlay changes so they do not count as screen changes. */
+    /**
+     * Takes the frames produced by our own overlay changes so they do not trigger an immediate OCR run.
+     * They are kept as [lastVisible]: the screen underneath may have changed meanwhile (e.g. while OCR ran),
+     * and a static screen sends no further frames, so the periodic refresh must compare against this one.
+     */
     private fun settleAndDrain() {
         SystemClock.sleep(OWN_SETTLE_MS)
-        reader?.acquireLatestImage()?.close()
+        val image = reader?.acquireLatestImage() ?: return
+        val bmp = Frames.toBitmap(image)
+        image.close()
+        lastVisible?.recycle()
+        lastVisible = bmp
     }
 
     private fun changed(old: IntArray?, new: IntArray): Boolean {

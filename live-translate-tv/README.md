@@ -136,8 +136,10 @@ Nasıl çalışır:
 3. **ML Kit Translation EN→TR (cihaz içi)**: model ilk başlatmada bir kez indirilir (~30 MB). İnene kadar
    (ya da hata olursa) uygulamanın mevcut çevrimiçi zinciri kullanılır (PC sunucusu → Google → Lingva → MyMemory).
    Çeviriler önbelleğe alınır.
-4. **TYPE_APPLICATION_OVERLAY** penceresi (odak almaz, dokunma almaz) her bloğun üstüne, arka plan renginden
-   örneklenmiş opak bir kutu ve uygun boyutta Türkçe metin çizer.
+4. **TYPE_APPLICATION_OVERLAY** penceresi (odak almaz, kumanda tuşları alttaki uygulamaya gider) her bloğun üstüne,
+   arka plan renginden örneklenmiş opak bir kutu ve uygun boyutta Türkçe metin çizer. Android 12+ dokunma almayan
+   overlay'leri %80 opaklıkla sınırladığından (İngilizce alttan görünür), TV'lerde pencere dokunmayı alır; fare/dokunma
+   kullanan nadir TV'lerde çeviri açıkken tıklama alttaki uygulamaya geçmez.
 5. Kendi kutularımızı yeniden okuyup çevirmemek için: yakalama anında overlay ~0,1 sn gizlenir, temiz kare alınır,
    sonra geri gösterilir; kendi değişikliklerimizin ürettiği kareler atılır. Ayrıca son üretilen Türkçe metinler
    OCR sonuçlarından filtrelenir.
@@ -152,7 +154,10 @@ Nasıl çalışır:
   gösterildiği için ekran yakalamada **siyah** görünür. TV içindeki uygulama bu görüntüyü **okuyamaz**. Ancak yerleşik
   Google TV'lerde overlay HDMI görüntüsünün **üstüne çizebilir**. Bu nedenle HDMI için çeviriyi başka bir cihaz
   yapar ve **Ağdan çeviri alıcı** (aşağıda) ile TV'ye gönderir.
+- **Sistem ekranları:** TV Ayarları ve izin pencereleri açıkken Android tüm overlay'leri gizler; bu ekranlar
+  çevrilemez. Test için tarayıcı, YouTube ya da Google TV ana ekranını kullanın.
 - Video oynatılırken her karede ekran değiştiği için OCR sürekli çalışır ve kutular saniyede bir kısa süre yanıp söner.
+  Ekran durağansa kutular yerinde kalır, yanıp sönme olmaz.
 - OCR yalnızca Latin alfabesi; çok küçük, stilize ya da hareketli yazılar kaçabilir. Kutular çeviri uzunsa aşağı doğru uzar.
 - Düşük güçlü TV işlemcilerinde OCR + çeviri 0,3–1 sn sürebilir; bu sürede yeni yazı gecikmeli görünür.
 - APK, OCR modelini tüm işlemci türleri için içerdiğinden ~58 MB'dır.
