@@ -1,0 +1,8 @@
+.venv/
+build/
+dist/
+*.spec
+__pycache__/
+.pytest_cache/
+smoke_*.png
+PS5Altyazi-windows.zip
