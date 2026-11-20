@@ -38,6 +38,12 @@ jobs:
           --add-data "ps5sub/assets;ps5sub/assets"
           run_app.py
 
+      - name: Slim bundle (video files decode via Media Foundation; capture cards use DirectShow)
+        shell: pwsh
+        run: |
+          Remove-Item dist/PS5Altyazi/_internal/cv2/opencv_videoio_ffmpeg*.dll
+          Remove-Item dist/PS5Altyazi/_internal/PIL/_avif*.pyd
+
       - name: Self-test packaged exe
         shell: pwsh
         run: |

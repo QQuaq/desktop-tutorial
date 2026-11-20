@@ -30,8 +30,8 @@ def trim_black_bars(frame: np.ndarray, aspect: float = 16 / 9) -> np.ndarray:
     if h < 20 or w < 20:
         return frame
     lum = frame.max(axis=2)
-    rows = np.where(lum.mean(axis=1) > 12)[0]
-    cols = np.where(lum.mean(axis=0) > 12)[0]
+    rows = np.where(np.median(lum, axis=1) > 12)[0]
+    cols = np.where(np.median(lum, axis=0) > 12)[0]
     if len(rows) == 0 or len(cols) == 0:
         return frame
     y0, y1, x0, x1 = rows[0], rows[-1] + 1, cols[0], cols[-1] + 1

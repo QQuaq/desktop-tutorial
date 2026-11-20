@@ -43,7 +43,7 @@ def main() -> int:
         root.update()
         src.close()
         text = ocr.read(crop_region(frame, [0.15, 0.72, 0.70, 0.25])).text if frame is not None else ""
-        ok = "marina" in text.lower()
+        ok = "marina" in text.lower() and frame.shape[:2] == (576, 1024)
         print(f"{method}: frame={None if frame is None else frame.shape} ok={ok} text={text!r}")
         if frame is not None:
             Image.fromarray(frame).save(ROOT / f"smoke_{method}.png")
