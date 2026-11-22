@@ -166,3 +166,44 @@ export function normalizeUsername(raw: string): string | null {
   if (!USERNAME_PATTERN.test(trimmed)) return null;
   return trimmed;
 }
+
+/** En fazla 3 benzersiz kullanıcı adı (sırayla aranır). */
+export function parseUsernameList(
+  username?: string,
+  usernames?: unknown
+): { ok: true; names: string[] } | { ok: false; error: string } {
+  const rawList: string[] = [];
+
+  if (Array.isArray(usernames)) {
+    for (const item of usernames) {
+      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+    }
+  } else if (typeof username === "string" && username.trim()) {
+    rawList.push(username.trim());
+  }
+
+  if (rawList.length === 0) {
+    return { ok: false, error: "En az bir kullanıcı adı girin." };
+  }
+  if (rawList.length > 3) {
+    return { ok: false, error: "En fazla 3 kullanıcı adı aranabilir." };
+  }
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of rawList) {
+    const n = normalizeUsername(raw);
+    if (!n) {
+      return {
+        ok: false,
+        error: `Geçersiz kullanıcı adı: «${raw}». 2–40 karakter; harf, rakam, nokta, alt çizgi veya tire.`,
+      };
+    }
+    if (!seen.has(n)) {
+      seen.add(n);
+      names.push(n);
+    }
+  }
+
+  return { ok: true, names };
+}

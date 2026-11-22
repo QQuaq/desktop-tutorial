@@ -141,3 +141,15 @@ export interface SearchResponse {
     elapsedMs: number;
   };
 }
+
+export interface BatchSearchResponse {
+  batch: true;
+  person?: PersonHintsInput;
+  items: SearchResponse[];
+  meta: {
+    usernameCount: number;
+    totalElapsedMs: number;
+    totalFound: number;
+    totalStrongIdentity: number;
+  };
+}

@@ -330,6 +330,76 @@ header .lead {
   word-break: break-all;
 }
 
+.nickname-form {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid #2d7cff;
+  background: #121a2e;
+}
+
+.nickname-form h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.nickname-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.nickname-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #9aa8c3;
+}
+
+.nickname-grid input {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #243049;
+  background: #0a0e18;
+  color: #e8edf7;
+}
+
+.person-form-highlight {
+  border-color: #6dd4a0;
+  background: #121f1a;
+}
+
+.field-emphasis input {
+  border-color: #3d8f5c;
+}
+
+.nickname-block {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px solid #243049;
+}
+
+.nickname-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.nickname-title {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #7eb8ff;
+  flex: 1 1 auto;
+}
+
+.batch-summary {
+  font-size: 0.95rem;
+  color: #b8e8c8;
+  margin-bottom: 8px;
+}
+
 .person-form {
   margin-top: 22px;
   padding: 16px 18px;
