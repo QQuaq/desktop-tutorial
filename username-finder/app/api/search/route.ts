@@ -1,61 +1,88 @@
+import { parsePersonHints } from "@/lib/profile-hints";
+import { resolveSearchUsernames } from "@/lib/username-derive";
 import {
-  checkPlatforms,
-  normalizeUsername,
-} from "@/lib/check-profile";
-import { platformsForMode } from "@/lib/platforms";
-import type { SearchMode, SearchResponse } from "@/lib/types";
-import {
-  buildWebSearchPayload,
-  fetchDuckDuckGoLite,
-} from "@/lib/web-search";
+  personFromBody,
+  runUsernameSearch,
+} from "@/lib/search-run";
+import type {
+  BatchSearchResponse,
+  PersonHintsInput,
+  SearchMode,
+  SearchResponse,
+} from "@/lib/types";
 
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
 export async function POST(request: Request) {
-  let body: { username?: string; mode?: SearchMode };
+  let body: {
+    username?: string;
+    usernames?: string[];
+    mode?: SearchMode;
+    person?: PersonHintsInput;
+  };
   try {
     body = await request.json();
   } catch {
     return jsonError("Geçersiz JSON.", 400);
   }
 
-  const username = normalizeUsername(
-    typeof body.username === "string" ? body.username : ""
-  );
-  if (!username) {
-    return jsonError(
-      "Geçersiz kullanıcı adı. 2–40 karakter; harf, rakam, nokta, alt çizgi veya tire kullanın.",
-      400
-    );
+  const person = personFromBody(body.person);
+
+  const rawList: string[] = [];
+  if (Array.isArray(body.usernames)) {
+    for (const item of body.usernames) {
+      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+    }
+  } else if (typeof body.username === "string" && body.username.trim()) {
+    rawList.push(body.username.trim());
   }
 
-  const mode: SearchMode = body.mode === "full" ? "full" : "quick";
-  const platforms = platformsForMode(mode);
-  const started = Date.now();
+  const resolved = resolveSearchUsernames(rawList, person);
+  if (!resolved.ok) return jsonError(resolved.error, 400);
+  const parsedHints = person ? parsePersonHints(person) : null;
+  const mode: SearchMode =
+    body.mode === "quick" && !parsedHints ? "quick" : "full";
 
-  const [platformResults, ddg] = await Promise.all([
-    checkPlatforms(platforms, username),
-    fetchDuckDuckGoLite(username),
-  ]);
+  const batchStarted = Date.now();
+  const items: SearchResponse[] = [];
 
-  const webBase = buildWebSearchPayload(username);
-  const foundCount = platformResults.filter((r) => r.status === "found").length;
+  for (const name of resolved.names) {
+    const result = await runUsernameSearch(name, parsedHints, person, mode);
+    items.push({
+      ...result,
+      generatedFromName: resolved.derivedFromName.includes(name),
+    });
+  }
 
-  const payload: SearchResponse = {
-    username,
-    mode,
-    platforms: platformResults,
-    webSearch: {
-      ...webBase,
-      duckDuckGoResults: ddg.results.length ? ddg.results : undefined,
-      duckDuckGoNote: ddg.note,
-    },
+  if (items.length === 1) {
+    const one = items[0];
+    return Response.json({
+      ...one,
+      derivedFromName:
+        resolved.derivedFromName.length > 0
+          ? resolved.derivedFromName
+          : undefined,
+    });
+  }
+
+  const payload: BatchSearchResponse = {
+    batch: true,
+    person,
+    derivedFromName:
+      resolved.derivedFromName.length > 0
+        ? resolved.derivedFromName
+        : undefined,
+    items,
     meta: {
-      checkedCount: platformResults.length,
-      foundCount,
-      elapsedMs: Date.now() - started,
+      usernameCount: items.length,
+      totalElapsedMs: Date.now() - batchStarted,
+      totalFound: items.reduce((n, i) => n + i.meta.foundCount, 0),
+      totalStrongIdentity: items.reduce(
+        (n, i) => n + i.meta.strongIdentityMatchCount,
+        0
+      ),
     },
   };
 

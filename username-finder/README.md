@@ -1,6 +1,6 @@
 # Kullanıcı adı arama (username-finder)
 
-Türkçe arayüzlü, **detaylı kullanıcı adı bulucu**: Bir takma adı birçok sosyal/medya/geliştirici platformunda herkese açık profil URL kalıplarıyla kontrol eder; Google, Yandex ve DuckDuckGo için arama bağlantıları (ve mümkünse DuckDuckGo HTML özeti) sunar.
+Türkçe arayüzlü **detaylı kullanıcı adı bulucu**: Platform taraması, isteğe bağlı kimlik alanlarıyla sayfa analizi, Google/Bing bağlantıları ve DuckDuckGo özeti.
 
 ## Yerel geliştirme
 
@@ -18,7 +18,7 @@ Diğer komutlar: `npm run build`, `npm run start`, ağ üzerinden `npm run dev:l
 
 - **Hızlı mod**: Sık kullanılan ~15 platform.
 - **Detaylı mod**: Kayıtlı tüm platformlar (forum, oyun, kod, vb.).
-- `POST /api/search` — gövde: `{ "username": "...", "mode": "quick" | "full" }`
+- `POST /api/search` — gövde: `{ "username": "...", "mode": "quick" | "full", "person": { "firstName", "lastName", "birthDate", "location" } }`
 - Web araması: Google ve Yandex doğrudan bağlantılar; önerilen `site:` sorguları; DuckDuckGo HTML (API anahtarı yok).
 
 ## Doğrulama mantığı (sınırlamalar)
@@ -33,14 +33,9 @@ Her platform `lib/platforms.ts` içinde tanımlıdır:
 
 Bu araç yalnızca herkese açık profil sayfalarına HTTP isteği gönderir. Sonuçlar kesin kimlik tespiti sağlamaz. Taciz, stalking veya hizmet şartlarını ihlal eden kullanım sorumluluğu kullanıcıdadır.
 
-## Gelecekte Yandex XML API
+Kimlik analizi herkese açık profil HTML’inde arama yapar; birçok site doğum yeri veya tam tarihi göstermez → eksik eşleşme normaldir.
 
-Ücretli/resmi Yandex arama entegrasyonu için genelde şunlar gerekir (şu an **kullanılmıyor**):
-
-- `YANDEX_SEARCH_API_KEY` — Yandex Cloud Search API anahtarı
-- `YANDEX_FOLDER_ID` — Cloud klasör kimliği
-
-DuckDuckGo HTML ve manuel Google/Yandex bağlantıları API anahtarı gerektirmez.
+DuckDuckGo HTML ve Google/Bing bağlantıları API anahtarı gerektirmez.
 
 ## Proje yapısı
 

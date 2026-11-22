@@ -1,4 +1,8 @@
 import { buildProfileUrl } from "./platforms";
+import {
+  analyzePageIdentity,
+  type ParsedPersonHints,
+} from "./profile-hints";
 import type { CheckStatus, PlatformDef, PlatformResult } from "./types";
 
 export const PER_SITE_TIMEOUT_MS = 8000;
@@ -48,7 +52,8 @@ async function fetchWithTimeout(
 
 export async function checkOnePlatform(
   platform: PlatformDef,
-  username: string
+  username: string,
+  hints: ParsedPersonHints | null
 ): Promise<PlatformResult> {
   const url = buildProfileUrl(platform.urlTemplate, username);
   const started = Date.now();
@@ -57,11 +62,13 @@ export async function checkOnePlatform(
     const needsBody =
       platform.method === "GET" &&
       Boolean(platform.forbiddenBodySubstrings?.length);
+    const needIdentityBody = Boolean(hints);
 
     const response = await fetchWithTimeout(
       url,
       {
-        method: platform.method,
+        method:
+          needIdentityBody && platform.method === "HEAD" ? "GET" : platform.method,
         redirect: "follow",
         headers: {
           "User-Agent": USER_AGENT,
@@ -73,10 +80,10 @@ export async function checkOnePlatform(
     );
 
     let bodySnippet = "";
-    if (needsBody || platform.method === "GET") {
+    if (needsBody || needIdentityBody || platform.method === "GET") {
       try {
         const text = await response.text();
-        bodySnippet = text.slice(0, 80_000);
+        bodySnippet = text.slice(0, 120_000);
       } catch {
         /* gövde okunamazsa yalnızca status */
       }
@@ -84,6 +91,13 @@ export async function checkOnePlatform(
 
     const httpStatus = response.status;
     const status = classify(platform, httpStatus, bodySnippet);
+
+    const identity =
+      hints &&
+      bodySnippet &&
+      (status === "found" || status === "unknown")
+        ? analyzePageIdentity(bodySnippet, username, hints)
+        : undefined;
 
     return {
       platformId: platform.id,
@@ -93,6 +107,7 @@ export async function checkOnePlatform(
       status,
       httpStatus,
       responseTimeMs: Date.now() - started,
+      identity,
     };
   } catch (err) {
     const message =
@@ -117,6 +132,7 @@ export async function checkOnePlatform(
 export async function checkPlatforms(
   platforms: PlatformDef[],
   username: string,
+  hints: ParsedPersonHints | null,
   onProgress?: (done: number, total: number) => void
 ): Promise<PlatformResult[]> {
   const results: PlatformResult[] = [];
@@ -128,7 +144,7 @@ export async function checkPlatforms(
     while (index < platforms.length) {
       const i = index++;
       const platform = platforms[i];
-      const result = await checkOnePlatform(platform, username);
+      const result = await checkOnePlatform(platform, username, hints);
       results[i] = result;
       done += 1;
       onProgress?.(done, total);
@@ -149,4 +165,45 @@ export function normalizeUsername(raw: string): string | null {
   const trimmed = raw.trim().replace(/^@/, "");
   if (!USERNAME_PATTERN.test(trimmed)) return null;
   return trimmed;
+}
+
+/** En fazla 3 benzersiz kullanıcı adı (sırayla aranır). */
+export function parseUsernameList(
+  username?: string,
+  usernames?: unknown
+): { ok: true; names: string[] } | { ok: false; error: string } {
+  const rawList: string[] = [];
+
+  if (Array.isArray(usernames)) {
+    for (const item of usernames) {
+      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+    }
+  } else if (typeof username === "string" && username.trim()) {
+    rawList.push(username.trim());
+  }
+
+  if (rawList.length === 0) {
+    return { ok: false, error: "En az bir kullanıcı adı girin." };
+  }
+  if (rawList.length > 3) {
+    return { ok: false, error: "En fazla 3 kullanıcı adı aranabilir." };
+  }
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of rawList) {
+    const n = normalizeUsername(raw);
+    if (!n) {
+      return {
+        ok: false,
+        error: `Geçersiz kullanıcı adı: «${raw}». 2–40 karakter; harf, rakam, nokta, alt çizgi veya tire.`,
+      };
+    }
+    if (!seen.has(n)) {
+      seen.add(n);
+      names.push(n);
+    }
+  }
+
+  return { ok: true, names };
 }

@@ -1,279 +1,319 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { CATEGORY_LABELS } from "@/lib/platforms";
+import { SearchResultBlock } from "./SearchResultBlock";
 import type {
-  PlatformCategory,
-  PlatformResult,
+  BatchSearchResponse,
+  PersonHintsInput,
   SearchResponse,
 } from "@/lib/types";
 
-type BadgeKind = PlatformResult["status"];
-
-const BADGE_LABEL: Record<BadgeKind, string> = {
-  found: "Bulundu",
-  not_found: "Yok",
-  unknown: "Belirsiz",
-  error: "Hata",
+const EMPTY_PERSON: PersonHintsInput = {
+  firstName: "",
+  lastName: "",
+  birthDate: "",
+  location: "",
 };
-
-const BADGE_CLASS: Record<BadgeKind, string> = {
-  found: "badge-found",
-  not_found: "badge-not",
-  unknown: "badge-unknown",
-  error: "badge-error",
-};
-
-function groupByCategory(
-  items: PlatformResult[]
-): [PlatformCategory, PlatformResult[]][] {
-  const map = new Map<PlatformCategory, PlatformResult[]>();
-  for (const item of items) {
-    const list = map.get(item.category) ?? [];
-    list.push(item);
-    map.set(item.category, list);
-  }
-  const order: PlatformCategory[] = [
-    "sosyal",
-    "mesajlaşma",
-    "medya",
-    "profesyonel",
-    "kod",
-    "forum",
-    "blog",
-    "oyun",
-  ];
-  return order
-    .filter((c) => map.has(c))
-    .map((c) => [c, map.get(c)!] as [PlatformCategory, PlatformResult[]]);
-}
 
 export default function HomePage() {
-  const [username, setUsername] = useState("");
-  const [detailed, setDetailed] = useState(false);
+  const [nicknames, setNicknames] = useState(["", "", ""]);
+  const [person, setPerson] = useState<PersonHintsInput>({ ...EMPTY_PERSON });
+  const [detailed, setDetailed] = useState(true);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
-  const [data, setData] = useState<SearchResponse | null>(null);
+  const [results, setResults] = useState<SearchResponse[] | null>(null);
+  const [batchMeta, setBatchMeta] = useState<BatchSearchResponse["meta"] | null>(
+    null
+  );
+  const [derivedNote, setDerivedNote] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const grouped = useMemo(
-    () => (data ? groupByCategory(data.platforms) : []),
-    [data]
+  const hasFullName = useMemo(
+    () =>
+      Boolean(person.firstName?.trim() && person.lastName?.trim()),
+    [person.firstName, person.lastName]
   );
 
+  const hasPersonHints = useMemo(
+    () =>
+      Boolean(
+        person.firstName?.trim() ||
+          person.lastName?.trim() ||
+          person.birthDate?.trim() ||
+          person.location?.trim()
+      ),
+    [person]
+  );
+
+  const setPersonField = (key: keyof PersonHintsInput, value: string) => {
+    setPerson((prev) => ({ ...prev, [key]: value }));
+  };
+
   const runSearch = useCallback(async () => {
-    const q = username.trim();
-    if (!q) {
-      setError("Bir kullanıcı adı girin.");
+    const names = nicknames.map((n) => n.trim()).filter(Boolean).slice(0, 3);
+    if (names.length === 0 && !hasFullName) {
+      setError("En az bir takma ad veya ad + soyad girin.");
       return;
     }
     setLoading(true);
     setError("");
-    setProgress("Platformlar taranıyor…");
-    setData(null);
+    setDerivedNote("");
+    setProgress(
+      names.length > 0
+        ? "Takma adlar ve kimlik bilgileri ile taranıyor…"
+        : "Ad/soyaddan üretilen nickler taranıyor…"
+    );
+    setResults(null);
+    setBatchMeta(null);
+
+    const personPayload: PersonHintsInput = {
+      firstName: person.firstName?.trim() || undefined,
+      lastName: person.lastName?.trim() || undefined,
+      birthDate: person.birthDate?.trim() || undefined,
+      location: person.location?.trim() || undefined,
+    };
 
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: q,
-          mode: detailed ? "full" : "quick",
+          usernames: names,
+          mode: hasPersonHints || detailed ? "full" : "quick",
+          person: hasPersonHints ? personPayload : undefined,
         }),
       });
-      const json = await res.json();
+      const json: unknown = await res.json();
       if (!res.ok) {
-        setError(typeof json.error === "string" ? json.error : "Arama başarısız.");
+        const errMsg =
+          json &&
+          typeof json === "object" &&
+          "error" in json &&
+          typeof (json as { error?: unknown }).error === "string"
+            ? (json as { error: string }).error
+            : "Arama başarısız.";
+        setError(errMsg);
         setProgress("");
         return;
       }
-      setData(json as SearchResponse);
-      const d = json as SearchResponse;
-      setProgress(
-        `${d.meta.checkedCount} site kontrol edildi · ${d.meta.foundCount} olası eşleşme · ${(d.meta.elapsedMs / 1000).toFixed(1)} sn`
-      );
+
+      const derived =
+        json &&
+        typeof json === "object" &&
+        "derivedFromName" in json &&
+        Array.isArray((json as { derivedFromName?: string[] }).derivedFromName)
+          ? (json as { derivedFromName: string[] }).derivedFromName
+          : undefined;
+
+      if (derived?.length) {
+        setDerivedNote(
+          `Ad/soyaddan otomatik nickler: ${derived.join(", ")}`
+        );
+      }
+
+      if (
+        json &&
+        typeof json === "object" &&
+        "batch" in json &&
+        (json as BatchSearchResponse).batch === true
+      ) {
+        const batch = json as BatchSearchResponse;
+        setResults(batch.items);
+        setBatchMeta(batch.meta);
+        if (batch.derivedFromName?.length) {
+          setDerivedNote(
+            `Ad/soyaddan otomatik nickler: ${batch.derivedFromName.join(", ")}`
+          );
+        }
+        setProgress(
+          `${batch.meta.usernameCount} arama · ${batch.meta.totalFound} profil · ${(batch.meta.totalElapsedMs / 1000).toFixed(1)} sn`
+        );
+      } else {
+        const single = json as SearchResponse;
+        setResults([single]);
+        setProgress(
+          `${single.meta.foundCount} profil · ${(single.meta.elapsedMs / 1000).toFixed(1)} sn`
+        );
+      }
     } catch {
       setError("Sunucuya bağlanılamadı.");
       setProgress("");
     } finally {
       setLoading(false);
     }
-  }, [username, detailed]);
+  }, [nicknames, detailed, hasPersonHints, hasFullName, person]);
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !loading) void runSearch();
+  const setNickname = (index: number, value: string) => {
+    setNicknames((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
   };
-
-  const copyFoundLinks = useCallback(() => {
-    if (!data) return;
-    const links = data.platforms
-      .filter((p) => p.status === "found")
-      .map((p) => p.url)
-      .join("\n");
-    if (!links) return;
-    void navigator.clipboard.writeText(links);
-    setProgress("Bulunan bağlantılar panoya kopyalandı.");
-  }, [data]);
 
   return (
     <main>
       <header>
         <h1>Kullanıcı adı arama</h1>
         <p className="lead">
-          Girilen takma adı birçok platformda herkese açık profil adresi üzerinden
-          kontrol eder ve web arama bağlantıları sunar.
+          <strong>Ad ve soyad</strong> zorunlu değil ama önerilir; takma ad
+          yazmazsanız ad/soyaddan en fazla 3 olası nick üretilir. Doğum tarihi
+          ve şehir eşleşmesi için de doldurun.
         </p>
-        <div className="disclaimer" role="note">
-          <strong>Yalnızca herkese açık veriler:</strong> Bu araç oturum açmadan
-          erişilebilen profil URL’lerini HTTP ile sorgular. Sonuçlar hatalı pozitif
-          veya negatif olabilir; başkalarını rahatsız etmek veya izinsiz takip için
-          kullanmayın.
-        </div>
       </header>
 
-      <div className="search-bar">
+      <section
+        className="person-form person-form-highlight"
+        aria-labelledby="person-heading"
+      >
+        <h2 id="person-heading">Ad, soyad, doğum tarihi, yaşadığı yer</h2>
+        <div className="person-grid">
+          <label className="field-emphasis">
+            Ad
+            <input
+              type="text"
+              autoComplete="given-name"
+              value={person.firstName ?? ""}
+              onChange={(e) => setPersonField("firstName", e.target.value)}
+              disabled={loading}
+              placeholder="örn. Ayşe"
+            />
+          </label>
+          <label className="field-emphasis">
+            Soyad
+            <input
+              type="text"
+              autoComplete="family-name"
+              value={person.lastName ?? ""}
+              onChange={(e) => setPersonField("lastName", e.target.value)}
+              disabled={loading}
+              placeholder="örn. Yılmaz"
+            />
+          </label>
+          <label className="field-emphasis">
+            Doğum tarihi
+            <input
+              type="text"
+              placeholder="örn. 15.05.1995"
+              autoComplete="off"
+              value={person.birthDate ?? ""}
+              onChange={(e) => setPersonField("birthDate", e.target.value)}
+              disabled={loading}
+            />
+          </label>
+          <label className="field-emphasis">
+            Yaşadığı yer
+            <input
+              type="text"
+              placeholder="örn. İstanbul"
+              autoComplete="off"
+              value={person.location ?? ""}
+              onChange={(e) => setPersonField("location", e.target.value)}
+              disabled={loading}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="nickname-form" aria-labelledby="nick-heading">
+        <h2 id="nick-heading">Takma adlar (isteğe bağlı, en fazla 3)</h2>
+        <p className="person-hint">
+          Bilinen nickleri yazın; boş bırakırsanız yalnızca ad+soyad ile tahmini
+          nickler denenir.
+        </p>
+        <div className="nickname-grid">
+          {nicknames.map((value, i) => (
+            <label key={i}>
+              {i + 1}. takma ad
+              <input
+                type="search"
+                autoComplete="off"
+                spellCheck={false}
+                value={value}
+                onChange={(e) => setNickname(i, e.target.value)}
+                disabled={loading}
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="image-form" aria-labelledby="image-heading">
+        <h2 id="image-heading">Resimle arama</h2>
         <input
-          type="search"
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="örn. kullanici_adi"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          onKeyDown={onKeyDown}
+          type="file"
+          accept="image/*"
           disabled={loading}
-          aria-label="Kullanıcı adı"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) {
+              setImagePreview(null);
+              return;
+            }
+            if (file.size > 1_500_000) {
+              setError("Resim en fazla ~1,5 MB olabilir.");
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () =>
+              setImagePreview(
+                typeof reader.result === "string" ? reader.result : null
+              );
+            reader.readAsDataURL(file);
+          }}
         />
+        {imagePreview ? (
+          <img src={imagePreview} alt="Önizleme" className="image-preview" />
+        ) : null}
+      </section>
+
+      <div className="search-bar">
         <button
           type="button"
           className="btn-primary"
           onClick={() => void runSearch()}
           disabled={loading}
         >
-          {loading ? "Taranıyor…" : "Ara"}
+          {loading ? "Taranıyor…" : "Detaylı tara"}
         </button>
         <button
           type="button"
           className={`toggle-detail${detailed ? " on" : ""}`}
           onClick={() => setDetailed((v) => !v)}
-          disabled={loading}
+          disabled={loading || hasPersonHints}
           aria-pressed={detailed}
         >
-          Detaylı mod {detailed ? "(tüm siteler)" : "(hızlı)"}
+          {hasPersonHints ? "Tüm siteler" : detailed ? "Tüm siteler" : "Hızlı"}
         </button>
       </div>
 
       <p className={`progress${error ? " error" : ""}`}>
         {error || progress || "\u00a0"}
       </p>
+      {derivedNote ? <p className="derived-note">{derivedNote}</p> : null}
 
-      {data ? (
-        <>
-          <div className="meta-row">
-            <span className="platform-meta">
-              Aranan: <strong>{data.username}</strong> · mod:{" "}
-              {data.mode === "full" ? "detaylı" : "hızlı"}
-            </span>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={copyFoundLinks}
-              disabled={!data.platforms.some((p) => p.status === "found")}
-            >
-              Bulunan bağlantıları kopyala
-            </button>
-          </div>
-
-          {grouped.map(([category, items]) => (
-            <section className="category-block" key={category}>
-              <h2>{CATEGORY_LABELS[category]}</h2>
-              <div className="platform-grid">
-                {items.map((p) => (
-                  <PlatformRow key={p.platformId} item={p} />
-                ))}
-              </div>
-            </section>
-          ))}
-
-          <section className="web-section" aria-labelledby="web-heading">
-            <h2 id="web-heading">Web araması</h2>
-            <div className="engine-links">
-              {data.webSearch.links.map((l) => (
-                <a
-                  key={l.engine}
-                  href={l.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {l.label}&apos;da aç
-                </a>
-              ))}
-            </div>
-            <h3 style={{ fontSize: "0.95rem", color: "#c5d0e4" }}>
-              Önerilen sorgular
-            </h3>
-            <ul className="query-list">
-              {data.webSearch.suggestedQueries.map((q) => (
-                <li key={q.url}>
-                  <a href={q.url} target="_blank" rel="noopener noreferrer">
-                    {q.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-
-            {data.webSearch.duckDuckGoResults?.length ? (
-              <div className="ddg-results">
-                <h3>DuckDuckGo (sunucu özeti)</h3>
-                {data.webSearch.duckDuckGoNote ? (
-                  <p className="ddg-note">{data.webSearch.duckDuckGoNote}</p>
-                ) : null}
-                {data.webSearch.duckDuckGoResults.map((r) => (
-                  <article className="ddg-item" key={r.url}>
-                    <a
-                      className="title"
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {r.title}
-                    </a>
-                    <div className="url">{r.url}</div>
-                  </article>
-                ))}
-              </div>
-            ) : data.webSearch.duckDuckGoNote ? (
-              <p className="ddg-note">{data.webSearch.duckDuckGoNote}</p>
-            ) : null}
-          </section>
-        </>
+      {batchMeta && batchMeta.usernameCount > 1 ? (
+        <p className="batch-summary">
+          Toplam: {batchMeta.totalFound} profil,{" "}
+          {batchMeta.totalStrongIdentity} güçlü kimlik eşleşmesi
+        </p>
       ) : null}
-    </main>
-  );
-}
 
-function PlatformRow({ item }: { item: PlatformResult }) {
-  return (
-    <div className="platform-row">
-      <span className={`badge ${BADGE_CLASS[item.status]}`}>
-        {BADGE_LABEL[item.status]}
-      </span>
-      <div>
-        <div className="platform-name">{item.name}</div>
-        <div className="platform-meta">
-          {item.httpStatus != null ? `HTTP ${item.httpStatus}` : "—"}
-          {" · "}
-          {item.responseTimeMs} ms
-          {item.error ? ` · ${item.error}` : ""}
-        </div>
-      </div>
-      <a
-        className="platform-link"
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Profili aç
-      </a>
-    </div>
+      {results?.map((data) => (
+        <SearchResultBlock
+          key={data.username}
+          data={data}
+          hasPersonHints={hasPersonHints}
+          onCopy={() => {
+            const links = data.platforms
+              .filter((p) => p.status === "found")
+              .map((p) => p.url)
+              .join("\n");
+            if (links) void navigator.clipboard.writeText(links);
+          }}
+        />
+      ))}
+    </main>
   );
 }

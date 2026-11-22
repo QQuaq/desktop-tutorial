@@ -29,6 +29,19 @@ export interface PlatformDef {
   quick: boolean;
 }
 
+export interface IdentityFieldMatch {
+  key: "firstName" | "lastName" | "birthYear" | "birthDate" | "location" | "username";
+  label: string;
+  matched: boolean;
+}
+
+export interface IdentityAnalysis {
+  fields: IdentityFieldMatch[];
+  matchedCount: number;
+  strongMatch: boolean;
+  summary: string;
+}
+
 export interface PlatformResult {
   platformId: string;
   name: string;
@@ -38,6 +51,22 @@ export interface PlatformResult {
   httpStatus?: number;
   responseTimeMs: number;
   error?: string;
+  identity?: IdentityAnalysis;
+}
+
+export interface PersonHintsInput {
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
+  location?: string;
+}
+
+export interface IdentityHighlight {
+  platformName: string;
+  url: string;
+  summary: string;
+  strongMatch: boolean;
+  matchedLabels: string[];
 }
 
 export interface WebSearchLink {
@@ -57,9 +86,41 @@ export interface DuckDuckGoResult {
   snippet?: string;
 }
 
+export interface WebHit {
+  title: string;
+  url: string;
+  snippet?: string;
+  identityMatch?: {
+    matchedLabels: string[];
+    strongMatch: boolean;
+    summary: string;
+  };
+}
+
+export type EngineScanStatus = "ok" | "empty" | "blocked" | "error";
+
+export interface EngineScan {
+  engine: string;
+  label: string;
+  results: WebHit[];
+  status: EngineScanStatus;
+  note?: string;
+}
+
+export interface ImageSearchOffer {
+  engine: string;
+  label: string;
+  url: string;
+  mode: "text" | "upload";
+  note: string;
+}
+
 export interface WebSearchPayload {
   links: WebSearchLink[];
   suggestedQueries: SuggestedQuery[];
+  engineScans: EngineScan[];
+  imageSearch: ImageSearchOffer[];
+  /** @deprecated engineScans kullanın */
   duckDuckGoResults?: DuckDuckGoResult[];
   duckDuckGoNote?: string;
 }
@@ -67,11 +128,33 @@ export interface WebSearchPayload {
 export interface SearchResponse {
   username: string;
   mode: SearchMode;
+  /** Bu sonuç ad/soyaddan otomatik üretilen nick ile arandı */
+  generatedFromName?: boolean;
+  derivedFromName?: string[];
+  person?: PersonHintsInput;
   platforms: PlatformResult[];
   webSearch: WebSearchPayload;
+  identityHighlights: IdentityHighlight[];
   meta: {
     checkedCount: number;
     foundCount: number;
+    identityMatchCount: number;
+    strongIdentityMatchCount: number;
+    engineHitCount: number;
     elapsedMs: number;
+  };
+}
+
+export interface BatchSearchResponse {
+  batch: true;
+  person?: PersonHintsInput;
+  /** Ad/soyaddan otomatik üretilen takma adlar */
+  derivedFromName?: string[];
+  items: SearchResponse[];
+  meta: {
+    usernameCount: number;
+    totalElapsedMs: number;
+    totalFound: number;
+    totalStrongIdentity: number;
   };
 }
