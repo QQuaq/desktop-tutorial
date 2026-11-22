@@ -45,3 +45,31 @@ DuckDuckGo HTML ve manuel Google/Yandex bağlantıları API anahtarı gerektirme
 ## Proje yapısı
 
 `live-translate/` ile aynı aileden Next.js 15 App Router + TypeScript. Bu klasör `live-translate` ile kardeştir; monorepo kökünde ayrı `package.json` vardır.
+
+## Telefondan kullanım
+
+Telefonda HTTPS ile açmak için aşağıdaki yollardan birini kullanabilirsiniz.
+
+### Seçenek A — Cursor Publish
+
+Cursor’da **Publish** görünüyorsa, bu çalışmanın agent sayfasından uygulamayı yayınlayabilirsiniz: [https://cursor.com/agents/bc-01a2021b-5591-7f30-88ea-814df0a186fb](https://cursor.com/agents/bc-01a2021b-5591-7f30-88ea-814df0a186fb)
+
+### Seçenek B — Vercel (önerilen, ücretsiz HTTPS)
+
+Bu depo bir monorepo; Vercel’de **Root Directory** mutlaka `username-finder` olmalı (`vercel.json` bu klasördedir).
+
+1. [Vercel](https://vercel.com) → **Add New… → Project**
+2. GitHub’dan **`QQuaq/desktop-tutorial`** deposunu içe aktarın
+3. **Root Directory** → `username-finder` seçin (Framework: Next.js, otomatik algılanır)
+4. **Deploy** — Hobby (ücretsiz) plan yeterlidir; dağıtım sonrası `https://…vercel.app` adresini telefonda açın
+
+### Seçenek C — Aynı Wi‑Fi (yerel ağ)
+
+Bilgisayarda:
+
+```bash
+cd username-finder
+npm run dev:lan
+```
+
+Telefonda tarayıcıda `http://<bilgisayarın-yerel-IP-adresi>:3457` (ör. `http://192.168.1.42:3457`). PC ve telefon aynı Wi‑Fi ağında olmalıdır.
