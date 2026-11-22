@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { ImageSearchPanel } from "./ImageSearchPanel";
 import { SearchResultBlock } from "./SearchResultBlock";
 import type {
   BatchSearchResponse,
@@ -27,8 +28,6 @@ export default function HomePage() {
     null
   );
   const [derivedNote, setDerivedNote] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-
   const hasFullName = useMemo(
     () =>
       Boolean(person.firstName?.trim() && person.lastName?.trim()),
@@ -163,6 +162,8 @@ export default function HomePage() {
         </p>
       </header>
 
+      <ImageSearchPanel />
+
       <section
         className="person-form person-form-highlight"
         aria-labelledby="person-heading"
@@ -237,35 +238,6 @@ export default function HomePage() {
             </label>
           ))}
         </div>
-      </section>
-
-      <section className="image-form" aria-labelledby="image-heading">
-        <h2 id="image-heading">Resimle arama</h2>
-        <input
-          type="file"
-          accept="image/*"
-          disabled={loading}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) {
-              setImagePreview(null);
-              return;
-            }
-            if (file.size > 1_500_000) {
-              setError("Resim en fazla ~1,5 MB olabilir.");
-              return;
-            }
-            const reader = new FileReader();
-            reader.onload = () =>
-              setImagePreview(
-                typeof reader.result === "string" ? reader.result : null
-              );
-            reader.readAsDataURL(file);
-          }}
-        />
-        {imagePreview ? (
-          <img src={imagePreview} alt="Önizleme" className="image-preview" />
-        ) : null}
       </section>
 
       <div className="search-bar">
