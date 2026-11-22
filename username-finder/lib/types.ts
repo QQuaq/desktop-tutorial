@@ -29,6 +29,19 @@ export interface PlatformDef {
   quick: boolean;
 }
 
+export interface IdentityFieldMatch {
+  key: "firstName" | "lastName" | "birthYear" | "birthDate" | "location" | "username";
+  label: string;
+  matched: boolean;
+}
+
+export interface IdentityAnalysis {
+  fields: IdentityFieldMatch[];
+  matchedCount: number;
+  strongMatch: boolean;
+  summary: string;
+}
+
 export interface PlatformResult {
   platformId: string;
   name: string;
@@ -38,6 +51,22 @@ export interface PlatformResult {
   httpStatus?: number;
   responseTimeMs: number;
   error?: string;
+  identity?: IdentityAnalysis;
+}
+
+export interface PersonHintsInput {
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
+  location?: string;
+}
+
+export interface IdentityHighlight {
+  platformName: string;
+  url: string;
+  summary: string;
+  strongMatch: boolean;
+  matchedLabels: string[];
 }
 
 export interface WebSearchLink {
@@ -67,11 +96,15 @@ export interface WebSearchPayload {
 export interface SearchResponse {
   username: string;
   mode: SearchMode;
+  person?: PersonHintsInput;
   platforms: PlatformResult[];
   webSearch: WebSearchPayload;
+  identityHighlights: IdentityHighlight[];
   meta: {
     checkedCount: number;
     foundCount: number;
+    identityMatchCount: number;
+    strongIdentityMatchCount: number;
     elapsedMs: number;
   };
 }

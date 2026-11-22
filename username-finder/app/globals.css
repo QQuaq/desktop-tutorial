@@ -329,3 +329,142 @@ header .lead {
   color: #6dd4a0;
   word-break: break-all;
 }
+
+.person-form {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid #243049;
+  background: #111827;
+}
+
+.person-form h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.person-hint {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  color: #7f8da8;
+}
+
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.person-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #9aa8c3;
+}
+
+.person-grid input {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #243049;
+  background: #0a0e18;
+  color: #e8edf7;
+}
+
+.identity-section {
+  margin-bottom: 28px;
+}
+
+.identity-section h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: #b8e8c8;
+}
+
+.identity-lead,
+.identity-empty,
+.web-note {
+  font-size: 0.88rem;
+  color: #7f8da8;
+  margin: 0 0 14px;
+}
+
+.identity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.identity-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #243049;
+  background: #141b2d;
+}
+
+.identity-card.strong {
+  border-color: #3d8f5c;
+  background: #152418;
+}
+
+.identity-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.chip-strong {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #1a3d2e;
+  color: #6dd4a0;
+}
+
+.identity-summary {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: #c5d0e4;
+}
+
+.match-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chip-match {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1a2845;
+  color: #7eb8ff;
+}
+
+.identity-link {
+  font-size: 0.88rem;
+  color: #7eb8ff;
+}
+
+.platform-body {
+  min-width: 0;
+}
+
+.platform-identity {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: #9aa8c3;
+  line-height: 1.4;
+}
+
+.platform-identity.strong {
+  color: #b8e8c8;
+}

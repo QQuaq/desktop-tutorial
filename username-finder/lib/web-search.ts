@@ -1,25 +1,34 @@
-import type { DuckDuckGoResult, SuggestedQuery, WebSearchLink, WebSearchPayload } from "./types";
+import type {
+  DuckDuckGoResult,
+  SuggestedQuery,
+  WebSearchLink,
+  WebSearchPayload,
+} from "./types";
+import {
+  buildIdentitySearchQuery,
+  type ParsedPersonHints,
+} from "./profile-hints";
 
 function encodeQuery(q: string): string {
   return encodeURIComponent(q);
 }
 
-export function buildWebSearchPayload(username: string): Omit<WebSearchPayload, "duckDuckGoResults" | "duckDuckGoNote"> {
+export function buildWebSearchPayload(
+  username: string,
+  hints: ParsedPersonHints | null
+): Omit<WebSearchPayload, "duckDuckGoResults" | "duckDuckGoNote"> {
+  const richQuery = buildIdentitySearchQuery(username, hints);
+
   const links: WebSearchLink[] = [
     {
       engine: "google",
       label: "Google",
-      url: `https://www.google.com/search?q=${encodeQuery(username)}`,
-    },
-    {
-      engine: "yandex",
-      label: "Yandex",
-      url: `https://yandex.com/search/?text=${encodeQuery(username)}`,
+      url: `https://www.google.com/search?q=${encodeQuery(richQuery)}`,
     },
     {
       engine: "bing",
       label: "Bing",
-      url: `https://www.bing.com/search?q=${encodeQuery(username)}`,
+      url: `https://www.bing.com/search?q=${encodeQuery(richQuery)}`,
     },
   ];
 
@@ -40,25 +49,31 @@ export function buildWebSearchPayload(username: string): Omit<WebSearchPayload, 
       label: `GitHub'da: ${username}`,
       url: `https://www.google.com/search?q=${encodeQuery(`"${username}" site:github.com`)}`,
     },
-    {
-      label: `Yandex — tırnaklı arama`,
-      url: `https://yandex.com/search/?text=${encodeQuery(`"${username}"`)}`,
-    },
   ];
+
+  if (hints?.firstName && hints.lastName) {
+    const nameQ = `"${hints.firstName} ${hints.lastName}" "${username}"`;
+    suggested.push({
+      label: `Ad + soyad + kullanıcı adı`,
+      url: `https://www.google.com/search?q=${encodeQuery(nameQ)}`,
+    });
+  }
+
+  if (hints?.birthYear && hints.locationTokens[0]) {
+    suggested.push({
+      label: `Doğum yılı + şehir`,
+      url: `https://www.google.com/search?q=${encodeQuery(
+        `"${username}" ${hints.birthYear} "${hints.locationTokens[0]}"`
+      )}`,
+    });
+  }
 
   return { links, suggestedQueries: suggested };
 }
 
-/**
- * DuckDuckGo HTML sürümü (API anahtarı gerekmez; yapı değişebilir).
- * Yandex/Google HTML kazıması daha kırılgandır; kullanıcıya doğrudan link verilir.
- *
- * Gelecekte Yandex XML API için: YANDEX_SEARCH_API_KEY ve YANDEX_FOLDER_ID ortam değişkenleri.
- */
 export async function fetchDuckDuckGoLite(
-  username: string
+  query: string
 ): Promise<{ results: DuckDuckGoResult[]; note?: string }> {
-  const query = `"${username}"`;
   const body = new URLSearchParams({ q: query });
 
   try {
@@ -70,29 +85,32 @@ export async function fetchDuckDuckGoLite(
           "Mozilla/5.0 (compatible; UsernameFinder/1.0; DuckDuckGo HTML)",
       },
       body: body.toString(),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(12_000),
     });
 
     if (!res.ok) {
       return {
         results: [],
-        note: "DuckDuckGo yanıt vermedi; yukarıdaki arama bağlantılarını kullanın.",
+        note: "DuckDuckGo yanıt vermedi; Google/Bing bağlantılarını kullanın.",
       };
     }
 
     const html = await res.text();
-    const results = parseDuckDuckGoHtml(html).slice(0, 5);
+    const results = parseDuckDuckGoHtml(html).slice(0, 10);
     if (results.length === 0) {
       return {
         results: [],
         note: "DuckDuckGo sonucu ayrıştırılamadı (sayfa yapısı değişmiş olabilir).",
       };
     }
-    return { results, note: "Sonuçlar DuckDuckGo HTML üzerinden alındı (ücretsiz, resmi olmayan)." };
+    return {
+      results,
+      note: "Sonuçlar DuckDuckGo HTML üzerinden alındı (ücretsiz, resmi olmayan).",
+    };
   } catch {
     return {
       results: [],
-      note: "DuckDuckGo isteği başarısız; Google/Yandex bağlantılarını kullanın.",
+      note: "DuckDuckGo isteği başarısız; Google/Bing bağlantılarını kullanın.",
     };
   }
 }
@@ -121,7 +139,7 @@ function parseDuckDuckGoHtml(html: string): DuckDuckGoResult[] {
     const title = stripTags(match[2]).trim();
     if (!title || !href.startsWith("http")) continue;
     results.push({ title, url: href });
-    if (results.length >= 5) break;
+    if (results.length >= 10) break;
   }
 
   if (results.length === 0) {
@@ -132,7 +150,7 @@ function parseDuckDuckGoHtml(html: string): DuckDuckGoResult[] {
       const href = decodeDuckUrl(match[1]);
       const title = stripTags(match[2]).trim() || href;
       results.push({ title, url: href });
-      if (results.length >= 5) break;
+      if (results.length >= 10) break;
     }
   }
 
