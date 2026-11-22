@@ -158,3 +158,48 @@ export interface BatchSearchResponse {
     totalStrongIdentity: number;
   };
 }
+
+export interface ImageMeta {
+  width?: number;
+  height?: number;
+  type?: string;
+  byteLength: number;
+  likelyPortrait: boolean;
+  likelyFacePhoto: boolean;
+}
+
+export type ImageMatchKind =
+  | "aynı_görsel"
+  | "benzer_görsel"
+  | "ilgili_sayfa"
+  | "bilinmiyor";
+
+export interface ImageHit {
+  engine: string;
+  domain: string;
+  siteName?: string;
+  title?: string;
+  pageUrl: string;
+  imageUrl?: string;
+  matchKind: ImageMatchKind;
+  confidence: number;
+  snippet?: string;
+}
+
+export interface AssistantReport {
+  headline: string;
+  summary: string;
+  bullets: string[];
+  siteFindings: string[];
+  recommendations: string[];
+  confidence: "yüksek" | "orta" | "düşük";
+}
+
+export interface ImageSearchResponse {
+  meta: ImageMeta;
+  hits: ImageHit[];
+  assistant: AssistantReport;
+  engineNotes: string[];
+  tempImageUrl?: string;
+  elapsedMs: number;
+}
