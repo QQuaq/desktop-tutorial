@@ -1,3 +1,7 @@
+import {
+  enforceRateLimit,
+  requireSignedInViewer,
+} from "@/lib/http-guard";
 import { parsePersonHints } from "@/lib/profile-hints";
 import { resolveSearchUsernames } from "@/lib/username-derive";
 import {
@@ -11,11 +15,24 @@ import type {
   SearchResponse,
 } from "@/lib/types";
 
+const MAX_BODY_BYTES = 32_000;
+
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
 export async function POST(request: Request) {
+  const auth = await requireSignedInViewer(request);
+  if (!auth.ok) return auth.response;
+
+  const limited = await enforceRateLimit(request, "search", 40, 60 * 60_000);
+  if (limited) return limited;
+
+  const len = Number(request.headers.get("content-length") || "0");
+  if (len > MAX_BODY_BYTES) {
+    return jsonError("İstek gövdesi çok büyük.", 413);
+  }
+
   let body: {
     username?: string;
     usernames?: string[];

@@ -217,7 +217,7 @@ export interface ImageSearchResponse {
   hits: ImageHit[];
   assistant: AssistantReport;
   engineNotes: string[];
-  tempImageUrl?: string;
   face: FaceAnalysis;
+  privacyNotice: string;
   elapsedMs: number;
 }

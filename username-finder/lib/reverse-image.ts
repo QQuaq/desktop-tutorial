@@ -1,5 +1,5 @@
-import { hostImageTemporarily } from "./image-host";
-import type { ImageHit, ImageMatchKind } from "./types";
+import { anonymousUploadName } from "./http-guard";
+import type { ImageHit } from "./types";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
@@ -11,7 +11,6 @@ const BLOCKED_DOMAINS = new Set([
   "yandex.net",
   "bing.com",
   "microsoft.com",
-  "tmpfiles.org",
   "passport.yandex.com",
   "mc.yandex.com",
 ]);
@@ -118,35 +117,31 @@ function parseLoosePageLinks(html: string, engine: string): ImageHit[] {
   return hits;
 }
 
-async function fetchBingByImageUrl(publicUrl: string): Promise<ImageHit[]> {
-  const q = encodeURIComponent(`imgurl:${publicUrl}`);
-  const url = `https://www.bing.com/images/search?q=${q}&FORM=IRIBIP`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "text/html" },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) return [];
-  const html = await res.text();
-  return parseBingImageHtml(html, "Bing Görsel");
-}
-
-async function fetchYandexByImageUrl(publicUrl: string): Promise<{
-  hits: ImageHit[];
-  note: string;
-}> {
-  const searchUrl = `https://yandex.com/images/search?rpt=imageview&url=${encodeURIComponent(publicUrl)}`;
-  const res = await fetch(searchUrl, {
-    headers: { "User-Agent": UA, "Accept-Language": "tr,en" },
-    signal: AbortSignal.timeout(18_000),
+async function fetchYandexMultipart(
+  buffer: Buffer,
+  mimeType: string
+): Promise<{ hits: ImageHit[]; note: string }> {
+  const filename = anonymousUploadName(mimeType);
+  const form = new FormData();
+  form.append(
+    "upfile",
+    new Blob([new Uint8Array(buffer)], { type: mimeType }),
+    filename
+  );
+  const res = await fetch("https://yandex.com/images/search", {
+    method: "POST",
+    headers: { "User-Agent": UA },
+    body: form,
+    signal: AbortSignal.timeout(22_000),
   });
   if (!res.ok) {
-    return { hits: [], note: "Yandex görsel araması yanıt vermedi." };
+    return { hits: [], note: "Yandex görsel yüklemesi yanıt vermedi." };
   }
   const html = await res.text();
   if (/captcha|робот|robot/i.test(html)) {
     return {
       hits: [],
-      note: "Yandex captcha verdi; telefonda Yandex Görsel ile yükleyin.",
+      note: "Yandex captcha verdi; alttaki Yandex Görsel bağlantısını kullanın.",
     };
   }
   const hits: ImageHit[] = [];
@@ -170,62 +165,46 @@ async function fetchYandexByImageUrl(publicUrl: string): Promise<{
     hits,
     note:
       hits.length > 0
-        ? "Yandex tersine görsel araması tamamlandı."
-        : "Yandex HTML sonucu boş (sayfa JS ile yükleniyor olabilir).",
+        ? "Yandex: fotoğraf doğrudan gönderildi (anonim dosya adı)."
+        : "Yandex HTML sonucu boş olabilir (sayfa JS ile yüklenir).",
   };
 }
 
-async function fetchYandexMultipart(
+async function fetchBingMultipart(
   buffer: Buffer,
-  filename: string
-): Promise<ImageHit[]> {
+  mimeType: string
+): Promise<{ hits: ImageHit[]; note: string }> {
+  const filename = anonymousUploadName(mimeType);
   const form = new FormData();
   form.append(
-    "upfile",
-    new Blob([new Uint8Array(buffer)], { type: "image/jpeg" }),
+    "imgurl",
+    new Blob([new Uint8Array(buffer)], { type: mimeType }),
     filename
   );
-  const res = await fetch("https://yandex.com/images/search", {
-    method: "POST",
-    headers: { "User-Agent": UA },
-    body: form,
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) return [];
-  const html = await res.text();
-  return parseLoosePageLinks(html, "Yandex (yükleme)");
-}
-
-async function fetchSerpApiLens(publicUrl: string): Promise<ImageHit[]> {
-  const key = process.env.SERPAPI_API_KEY?.trim();
-  if (!key) return [];
-  const params = new URLSearchParams({
-    engine: "google_lens",
-    url: publicUrl,
-    api_key: key,
-  });
-  const res = await fetch(`https://serpapi.com/search.json?${params}`, {
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) return [];
-  const json = (await res.json()) as {
-    visual_matches?: { title?: string; link?: string; source?: string }[];
-    knowledge_graph?: { title?: string; website?: string };
-  };
-  const hits: ImageHit[] = [];
-  for (const m of json.visual_matches ?? []) {
-    if (!m.link) continue;
-    pushHit(hits, {
-      engine: "Google Lens (API)",
-      pageUrl: m.link,
-      title: m.title,
-      matchKind: "benzer_görsel",
-      confidence: 85,
-      snippet: m.source,
-    });
-    if (hits.length >= 10) break;
+  const res = await fetch(
+    "https://www.bing.com/images/api/search/upload?FORM=SECIMG",
+    {
+      method: "POST",
+      headers: { "User-Agent": UA, Accept: "text/html,application/json" },
+      body: form,
+      signal: AbortSignal.timeout(20_000),
+    }
+  );
+  if (!res.ok) {
+    return { hits: [], note: "Bing görsel yüklemesi yanıt vermedi." };
   }
-  return hits;
+  const text = await res.text();
+  let hits = parseBingImageHtml(text, "Bing Görsel");
+  if (hits.length === 0) {
+    hits.push(...parseLoosePageLinks(text, "Bing Görsel"));
+  }
+  return {
+    hits,
+    note:
+      hits.length > 0
+        ? "Bing: fotoğraf doğrudan gönderildi (anonim dosya adı)."
+        : "Bing sonuç boş; alttaki Bing bağlantısını deneyin.",
+  };
 }
 
 function dedupeAndRank(hits: ImageHit[]): ImageHit[] {
@@ -253,52 +232,34 @@ function dedupeAndRank(hits: ImageHit[]): ImageHit[] {
   return [...map.values()].sort((a, b) => b.confidence - a.confidence);
 }
 
+/**
+ * Fotoğraf sunucuda saklanmaz; yalnızca arama motorlarına doğrudan yüklenir.
+ * Herkese açık ara dosya barındırıcı kullanılmaz.
+ */
 export async function runReverseImageSearch(
   buffer: Buffer,
-  filename: string,
   mimeType: string
 ): Promise<{
   hits: ImageHit[];
   engineNotes: string[];
-  tempImageUrl?: string;
 }> {
-  const notes: string[] = [];
-  const all: ImageHit[] = [];
+  const notes: string[] = [
+    "Fotoğraf depolanmadı; yalnızca seçtiğiniz arama ile Yandex/Bing'e iletildi.",
+  ];
 
-  const hosted = await hostImageTemporarily(buffer, filename, mimeType);
-  if ("error" in hosted) {
-    notes.push(hosted.error);
-    const yandexDirect = await fetchYandexMultipart(buffer, filename);
-    all.push(...yandexDirect);
-    if (yandexDirect.length) {
-      notes.push("Yandex doğrudan yükleme ile sonuç alındı.");
-    }
-    return { hits: dedupeAndRank(all), engineNotes: notes };
-  }
-
-  const publicUrl = hosted.url;
-  notes.push("Görsel geçici URL ile motorlara gönderildi (~1 saat).");
-
-  const [bing, yandex, serp, yandexUp] = await Promise.all([
-    fetchBingByImageUrl(publicUrl),
-    fetchYandexByImageUrl(publicUrl),
-    fetchSerpApiLens(publicUrl),
-    fetchYandexMultipart(buffer, filename),
+  const [yandex, bing] = await Promise.all([
+    fetchYandexMultipart(buffer, mimeType),
+    fetchBingMultipart(buffer, mimeType),
   ]);
 
-  all.push(...bing, ...yandex.hits, ...serp, ...yandexUp);
+  const all = [...yandex.hits, ...bing.hits];
   notes.push(yandex.note);
-  if (bing.length) notes.push(`Bing: ${bing.length} sonuç.`);
-  if (serp.length) notes.push(`Google Lens API: ${serp.length} sonuç.`);
-  if (!process.env.SERPAPI_API_KEY) {
-    notes.push(
-      "İsteğe bağlı SERPAPI_API_KEY ile Google Lens sonuçları güçlendirilir."
-    );
-  }
+  notes.push(bing.note);
+  if (yandex.hits.length) notes.push(`Yandex: ${yandex.hits.length} kayıt.`);
+  if (bing.hits.length) notes.push(`Bing: ${bing.hits.length} kayıt.`);
 
   return {
     hits: dedupeAndRank(all),
     engineNotes: notes,
-    tempImageUrl: publicUrl,
   };
 }
