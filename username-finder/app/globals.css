@@ -468,3 +468,86 @@ header .lead {
 .platform-identity.strong {
   color: #b8e8c8;
 }
+
+.image-form {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px dashed #334466;
+  background: #0f1520;
+}
+
+.image-form h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.image-preview {
+  display: block;
+  margin-top: 12px;
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 10px;
+  border: 1px solid #243049;
+}
+
+.engine-block {
+  margin-bottom: 22px;
+}
+
+.engine-block h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: #c5d0e4;
+}
+
+.engine-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #7f8da8;
+}
+
+.status-ok {
+  color: #6dd4a0;
+}
+
+.status-blocked {
+  color: #d4c76d;
+}
+
+.ddg-item.id-strong {
+  border-color: #3d8f5c;
+}
+
+.hit-snippet {
+  margin: 6px 0;
+  font-size: 0.82rem;
+  color: #9aa8c3;
+}
+
+.image-offer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.image-offer-list li {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #141b2d;
+  border: 1px solid #243049;
+}
+
+.image-offer-list a {
+  font-weight: 600;
+  color: #7eb8ff;
+  text-decoration: none;
+}
+
+.image-offer-list .offer-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #7f8da8;
+}

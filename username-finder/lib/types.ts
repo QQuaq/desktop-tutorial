@@ -86,9 +86,41 @@ export interface DuckDuckGoResult {
   snippet?: string;
 }
 
+export interface WebHit {
+  title: string;
+  url: string;
+  snippet?: string;
+  identityMatch?: {
+    matchedLabels: string[];
+    strongMatch: boolean;
+    summary: string;
+  };
+}
+
+export type EngineScanStatus = "ok" | "empty" | "blocked" | "error";
+
+export interface EngineScan {
+  engine: string;
+  label: string;
+  results: WebHit[];
+  status: EngineScanStatus;
+  note?: string;
+}
+
+export interface ImageSearchOffer {
+  engine: string;
+  label: string;
+  url: string;
+  mode: "text" | "upload";
+  note: string;
+}
+
 export interface WebSearchPayload {
   links: WebSearchLink[];
   suggestedQueries: SuggestedQuery[];
+  engineScans: EngineScan[];
+  imageSearch: ImageSearchOffer[];
+  /** @deprecated engineScans kullanın */
   duckDuckGoResults?: DuckDuckGoResult[];
   duckDuckGoNote?: string;
 }
@@ -105,6 +137,7 @@ export interface SearchResponse {
     foundCount: number;
     identityMatchCount: number;
     strongIdentityMatchCount: number;
+    engineHitCount: number;
     elapsedMs: number;
   };
 }

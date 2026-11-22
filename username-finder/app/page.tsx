@@ -64,6 +64,7 @@ export default function HomePage() {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [data, setData] = useState<SearchResponse | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const grouped = useMemo(
     () => (data ? groupByCategory(data.platforms) : []),
@@ -90,9 +91,7 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     setProgress(
-      hasPersonHints
-        ? "Tüm platformlar taranıyor; kimlik bilgileri sayfalarda aranıyor…"
-        : "Platformlar taranıyor…"
+      "Platformlar + DuckDuckGo, Bing ve Yandex motorları taranıyor…"
     );
     setData(null);
 
@@ -131,8 +130,12 @@ export default function HomePage() {
             : hasPersonHints
               ? " · kimlik alanları sayfalarda eşleşmedi"
               : "";
+      const engPart =
+        d.meta.engineHitCount > 0
+          ? ` · ${d.meta.engineHitCount} arama motoru sonucu`
+          : "";
       setProgress(
-        `${d.meta.checkedCount} site · ${d.meta.foundCount} profil${idPart} · ${(d.meta.elapsedMs / 1000).toFixed(1)} sn`
+        `${d.meta.checkedCount} site · ${d.meta.foundCount} profil${engPart}${idPart} · ${(d.meta.elapsedMs / 1000).toFixed(1)} sn`
       );
     } catch {
       setError("Sunucuya bağlanılamadı.");
@@ -166,9 +169,9 @@ export default function HomePage() {
       <header>
         <h1>Kullanıcı adı arama</h1>
         <p className="lead">
-          Kullanıcı adını kayıtlı tüm platformlarda tarar. İsim, soyad, doğum
-          tarihi ve yaşadığı yeri de yazarsanız bulunan profil sayfalarında bu
-          bilgilerin geçip geçmediğini analiz eder.
+          Platform taramasına ek olarak DuckDuckGo, Bing ve Yandex (mümkünse
+          sunucu üzerinden) metin araması yapar. İsim, doğum ve şehir girilince
+          sonuç metinlerinde de eşleşme arar.
         </p>
         <div className="disclaimer" role="note">
           <strong>Yalnızca herkese açık veriler:</strong> Sonuçlar hatalı olabilir;
@@ -227,6 +230,45 @@ export default function HomePage() {
             />
           </label>
         </div>
+      </section>
+
+      <section className="image-form" aria-labelledby="image-heading">
+        <h2 id="image-heading">Resimle arama</h2>
+        <p className="person-hint">
+          Profil fotoğrafı seçerseniz önizleme gösterilir. Tam otomatik tersine
+          görsel tarama sunucuda saklanmadan mümkün değil; arama sonrası Yandex
+          Görsel, Google Lens ve Bing bağlantıları listelenir.
+        </p>
+        <input
+          type="file"
+          accept="image/*"
+          disabled={loading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) {
+              setImagePreview(null);
+              return;
+            }
+            if (file.size > 1_500_000) {
+              setError("Resim en fazla ~1,5 MB olabilir.");
+              setImagePreview(null);
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () =>
+              setImagePreview(
+                typeof reader.result === "string" ? reader.result : null
+              );
+            reader.readAsDataURL(file);
+          }}
+        />
+        {imagePreview ? (
+          <img
+            src={imagePreview}
+            alt="Seçilen profil fotoğrafı önizlemesi"
+            className="image-preview"
+          />
+        ) : null}
       </section>
 
       <div className="search-bar">
@@ -357,9 +399,74 @@ export default function HomePage() {
             </section>
           ))}
 
+          <section className="web-section" aria-labelledby="engines-heading">
+            <h2 id="engines-heading">Arama motoru taraması</h2>
+            <p className="web-note">
+              Sonuçlar sunucuda toplanır; Yandex bazen captcha nedeniyle boş
+              kalabilir — o zaman alttaki Yandex bağlantılarını telefonda açın.
+            </p>
+            {data.webSearch.engineScans.map((scan) => (
+              <div className="engine-block" key={scan.engine}>
+                <h3>
+                  {scan.label}{" "}
+                  <span className={`engine-status status-${scan.status}`}>
+                    {scan.status === "ok"
+                      ? `${scan.results.length} sonuç`
+                      : scan.status === "blocked"
+                        ? "captcha"
+                        : "sonuç yok"}
+                  </span>
+                </h3>
+                {scan.note ? <p className="ddg-note">{scan.note}</p> : null}
+                {scan.results.map((r) => (
+                  <article
+                    className={`ddg-item${r.identityMatch?.strongMatch ? " id-strong" : ""}`}
+                    key={`${scan.engine}-${r.url}`}
+                  >
+                    <a
+                      className="title"
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {r.title}
+                    </a>
+                    {r.snippet ? (
+                      <p className="hit-snippet">{r.snippet}</p>
+                    ) : null}
+                    {r.identityMatch &&
+                    r.identityMatch.matchedLabels.length > 0 ? (
+                      <p className="platform-identity strong">
+                        {r.identityMatch.summary}
+                      </p>
+                    ) : null}
+                    <div className="url">{r.url}</div>
+                  </article>
+                ))}
+              </div>
+            ))}
+          </section>
+
+          <section className="web-section" aria-labelledby="image-links-heading">
+            <h2 id="image-links-heading">Görsel arama bağlantıları</h2>
+            <p className="web-note">
+              Resim yükleme motorları tarayıcıda çalışır; fotoğrafı siz
+              yüklersiniz.
+            </p>
+            <ul className="image-offer-list">
+              {data.webSearch.imageSearch.map((offer) => (
+                <li key={offer.engine}>
+                  <a href={offer.url} target="_blank" rel="noopener noreferrer">
+                    {offer.label}
+                  </a>
+                  <span className="offer-note">{offer.note}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section className="web-section" aria-labelledby="web-heading">
-            <h2 id="web-heading">Web araması</h2>
-            <p className="web-note">Yandex kaldırıldı; Google ve Bing kullanılır.</p>
+            <h2 id="web-heading">Tarayıcıda derin arama</h2>
             <div className="engine-links">
               {data.webSearch.links.map((l) => (
                 <a
@@ -372,9 +479,6 @@ export default function HomePage() {
                 </a>
               ))}
             </div>
-            <h3 style={{ fontSize: "0.95rem", color: "#c5d0e4" }}>
-              Önerilen sorgular
-            </h3>
             <ul className="query-list">
               {data.webSearch.suggestedQueries.map((q) => (
                 <li key={q.url}>
@@ -384,30 +488,6 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
-
-            {data.webSearch.duckDuckGoResults?.length ? (
-              <div className="ddg-results">
-                <h3>DuckDuckGo (sunucu özeti)</h3>
-                {data.webSearch.duckDuckGoNote ? (
-                  <p className="ddg-note">{data.webSearch.duckDuckGoNote}</p>
-                ) : null}
-                {data.webSearch.duckDuckGoResults.map((r) => (
-                  <article className="ddg-item" key={r.url}>
-                    <a
-                      className="title"
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {r.title}
-                    </a>
-                    <div className="url">{r.url}</div>
-                  </article>
-                ))}
-              </div>
-            ) : data.webSearch.duckDuckGoNote ? (
-              <p className="ddg-note">{data.webSearch.duckDuckGoNote}</p>
-            ) : null}
           </section>
         </>
       ) : null}

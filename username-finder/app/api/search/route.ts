@@ -2,6 +2,8 @@ import {
   checkPlatforms,
   normalizeUsername,
 } from "@/lib/check-profile";
+import { scanSearchEngines } from "@/lib/engine-search";
+import { buildImageSearchOffers } from "@/lib/image-search";
 import { platformsForMode } from "@/lib/platforms";
 import {
   parsePersonHints,
@@ -13,10 +15,7 @@ import type {
   SearchMode,
   SearchResponse,
 } from "@/lib/types";
-import {
-  buildWebSearchPayload,
-  fetchDuckDuckGoLite,
-} from "@/lib/web-search";
+import { buildWebSearchPayload } from "@/lib/web-search";
 
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -64,14 +63,15 @@ export async function POST(request: Request) {
   const platforms = platformsForMode(mode);
   const started = Date.now();
 
-  const ddgQuery = buildIdentitySearchQuery(username, parsedHints);
+  const searchQuery = buildIdentitySearchQuery(username, parsedHints);
 
-  const [platformResults, ddg] = await Promise.all([
+  const [platformResults, engineScans] = await Promise.all([
     checkPlatforms(platforms, username, parsedHints),
-    fetchDuckDuckGoLite(ddgQuery),
+    scanSearchEngines(searchQuery, username, parsedHints),
   ]);
 
   const webBase = buildWebSearchPayload(username, parsedHints);
+  const imageSearch = buildImageSearchOffers(username, parsedHints);
   const foundCount = platformResults.filter((r) => r.status === "found").length;
 
   const identityHighlights: IdentityHighlight[] = [];
@@ -88,16 +88,39 @@ export async function POST(request: Request) {
         .map((f) => f.label),
     });
   }
+
+  for (const scan of engineScans) {
+    for (const hit of scan.results) {
+      if (!hit.identityMatch || hit.identityMatch.matchedLabels.length === 0) {
+        continue;
+      }
+      identityHighlights.push({
+        platformName: `${scan.label} sonucu`,
+        url: hit.url,
+        summary: hit.identityMatch.summary,
+        strongMatch: hit.identityMatch.strongMatch,
+        matchedLabels: hit.identityMatch.matchedLabels,
+      });
+    }
+  }
+
   identityHighlights.sort(
     (a, b) =>
       Number(b.strongMatch) - Number(a.strongMatch) ||
       b.matchedLabels.length - a.matchedLabels.length
   );
 
+  const engineHitCount = engineScans.reduce(
+    (n, s) => n + s.results.length,
+    0
+  );
+
   const identityMatchCount = identityHighlights.length;
   const strongIdentityMatchCount = identityHighlights.filter(
     (h) => h.strongMatch
   ).length;
+
+  const ddg = engineScans.find((s) => s.engine === "duckduckgo");
 
   const payload: SearchResponse = {
     username,
@@ -106,8 +129,10 @@ export async function POST(request: Request) {
     platforms: platformResults,
     webSearch: {
       ...webBase,
-      duckDuckGoResults: ddg.results.length ? ddg.results : undefined,
-      duckDuckGoNote: ddg.note,
+      engineScans,
+      imageSearch,
+      duckDuckGoResults: ddg?.results,
+      duckDuckGoNote: ddg?.note,
     },
     identityHighlights,
     meta: {
@@ -115,6 +140,7 @@ export async function POST(request: Request) {
       foundCount,
       identityMatchCount,
       strongIdentityMatchCount,
+      engineHitCount,
       elapsedMs: Date.now() - started,
     },
   };
