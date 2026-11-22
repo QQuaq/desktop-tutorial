@@ -56,7 +56,7 @@ function pushHit(
   partial: Omit<ImageHit, "domain" | "siteName"> & { pageUrl: string }
 ) {
   const domain = hostname(partial.pageUrl);
-  if (!domain || domain.includes("yandex.") || domain.includes("bing.com")) {
+  if (!isUsefulDomain(domain)) {
     return;
   }
   list.push({
