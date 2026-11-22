@@ -26,7 +26,14 @@ export default function HomePage() {
   const [batchMeta, setBatchMeta] = useState<BatchSearchResponse["meta"] | null>(
     null
   );
+  const [derivedNote, setDerivedNote] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const hasFullName = useMemo(
+    () =>
+      Boolean(person.firstName?.trim() && person.lastName?.trim()),
+    [person.firstName, person.lastName]
+  );
 
   const hasPersonHints = useMemo(
     () =>
@@ -45,28 +52,27 @@ export default function HomePage() {
 
   const runSearch = useCallback(async () => {
     const names = nicknames.map((n) => n.trim()).filter(Boolean).slice(0, 3);
-    if (names.length === 0) {
-      setError("En az bir takma ad girin (en fazla 3).");
+    if (names.length === 0 && !hasFullName) {
+      setError("En az bir takma ad veya ad + soyad girin.");
       return;
     }
     setLoading(true);
     setError("");
+    setDerivedNote("");
     setProgress(
-      names.length > 1
-        ? `${names.length} takma ad sırayla taranıyor…`
-        : "Taranıyor…"
+      names.length > 0
+        ? "Takma adlar ve kimlik bilgileri ile taranıyor…"
+        : "Ad/soyaddan üretilen nickler taranıyor…"
     );
     setResults(null);
     setBatchMeta(null);
 
-    const personPayload: PersonHintsInput | undefined = hasPersonHints
-      ? {
-          firstName: person.firstName?.trim() || undefined,
-          lastName: person.lastName?.trim() || undefined,
-          birthDate: person.birthDate?.trim() || undefined,
-          location: person.location?.trim() || undefined,
-        }
-      : undefined;
+    const personPayload: PersonHintsInput = {
+      firstName: person.firstName?.trim() || undefined,
+      lastName: person.lastName?.trim() || undefined,
+      birthDate: person.birthDate?.trim() || undefined,
+      location: person.location?.trim() || undefined,
+    };
 
     try {
       const res = await fetch("/api/search", {
@@ -75,7 +81,7 @@ export default function HomePage() {
         body: JSON.stringify({
           usernames: names,
           mode: hasPersonHints || detailed ? "full" : "quick",
-          person: personPayload,
+          person: hasPersonHints ? personPayload : undefined,
         }),
       });
       const json: unknown = await res.json();
@@ -92,6 +98,20 @@ export default function HomePage() {
         return;
       }
 
+      const derived =
+        json &&
+        typeof json === "object" &&
+        "derivedFromName" in json &&
+        Array.isArray((json as { derivedFromName?: string[] }).derivedFromName)
+          ? (json as { derivedFromName: string[] }).derivedFromName
+          : undefined;
+
+      if (derived?.length) {
+        setDerivedNote(
+          `Ad/soyaddan otomatik nickler: ${derived.join(", ")}`
+        );
+      }
+
       if (
         json &&
         typeof json === "object" &&
@@ -101,8 +121,13 @@ export default function HomePage() {
         const batch = json as BatchSearchResponse;
         setResults(batch.items);
         setBatchMeta(batch.meta);
+        if (batch.derivedFromName?.length) {
+          setDerivedNote(
+            `Ad/soyaddan otomatik nickler: ${batch.derivedFromName.join(", ")}`
+          );
+        }
         setProgress(
-          `${batch.meta.usernameCount} takma ad · ${batch.meta.totalFound} profil · ${(batch.meta.totalElapsedMs / 1000).toFixed(1)} sn`
+          `${batch.meta.usernameCount} arama · ${batch.meta.totalFound} profil · ${(batch.meta.totalElapsedMs / 1000).toFixed(1)} sn`
         );
       } else {
         const single = json as SearchResponse;
@@ -117,7 +142,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [nicknames, detailed, hasPersonHints, person]);
+  }, [nicknames, detailed, hasPersonHints, hasFullName, person]);
 
   const setNickname = (index: number, value: string) => {
     setNicknames((prev) => {
@@ -132,57 +157,38 @@ export default function HomePage() {
       <header>
         <h1>Kullanıcı adı arama</h1>
         <p className="lead">
-          Aynı anda en fazla <strong>3 takma ad</strong> sırayla taranır. Doğum
-          tarihi ve yaşadığı yeri doldurunca bulunan sayfalarda eşleşme aranır.
+          <strong>Ad ve soyad</strong> zorunlu değil ama önerilir; takma ad
+          yazmazsanız ad/soyaddan en fazla 3 olası nick üretilir. Doğum tarihi
+          ve şehir eşleşmesi için de doldurun.
         </p>
       </header>
 
-      <section className="nickname-form" aria-labelledby="nick-heading">
-        <h2 id="nick-heading">Takma adlar (1–3)</h2>
-        <div className="nickname-grid">
-          {nicknames.map((value, i) => (
-            <label key={i}>
-              {i + 1}. takma ad
-              <input
-                type="search"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={i === 0 ? "zorunlu" : "isteğe bağlı"}
-                value={value}
-                onChange={(e) => setNickname(i, e.target.value)}
-                disabled={loading}
-              />
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section className="person-form person-form-highlight" aria-labelledby="person-heading">
-        <h2 id="person-heading">Doğum tarihi ve yaşadığı yer</h2>
-        <p className="person-hint">
-          Ad, soyad, <strong>doğum tarihi</strong> ve <strong>yaşadığı yer</strong>{" "}
-          tüm takma adlar için ortaktır; aynı kişiye ait profillerde metin
-          eşleşmesi aranır.
-        </p>
+      <section
+        className="person-form person-form-highlight"
+        aria-labelledby="person-heading"
+      >
+        <h2 id="person-heading">Ad, soyad, doğum tarihi, yaşadığı yer</h2>
         <div className="person-grid">
-          <label>
+          <label className="field-emphasis">
             Ad
             <input
               type="text"
-              autoComplete="off"
+              autoComplete="given-name"
               value={person.firstName ?? ""}
               onChange={(e) => setPersonField("firstName", e.target.value)}
               disabled={loading}
+              placeholder="örn. Ayşe"
             />
           </label>
-          <label>
+          <label className="field-emphasis">
             Soyad
             <input
               type="text"
-              autoComplete="off"
+              autoComplete="family-name"
               value={person.lastName ?? ""}
               onChange={(e) => setPersonField("lastName", e.target.value)}
               disabled={loading}
+              placeholder="örn. Yılmaz"
             />
           </label>
           <label className="field-emphasis">
@@ -200,13 +206,36 @@ export default function HomePage() {
             Yaşadığı yer
             <input
               type="text"
-              placeholder="örn. İstanbul, Türkiye"
+              placeholder="örn. İstanbul"
               autoComplete="off"
               value={person.location ?? ""}
               onChange={(e) => setPersonField("location", e.target.value)}
               disabled={loading}
             />
           </label>
+        </div>
+      </section>
+
+      <section className="nickname-form" aria-labelledby="nick-heading">
+        <h2 id="nick-heading">Takma adlar (isteğe bağlı, en fazla 3)</h2>
+        <p className="person-hint">
+          Bilinen nickleri yazın; boş bırakırsanız yalnızca ad+soyad ile tahmini
+          nickler denenir.
+        </p>
+        <div className="nickname-grid">
+          {nicknames.map((value, i) => (
+            <label key={i}>
+              {i + 1}. takma ad
+              <input
+                type="search"
+                autoComplete="off"
+                spellCheck={false}
+                value={value}
+                onChange={(e) => setNickname(i, e.target.value)}
+                disabled={loading}
+              />
+            </label>
+          ))}
         </div>
       </section>
 
@@ -235,11 +264,7 @@ export default function HomePage() {
           }}
         />
         {imagePreview ? (
-          <img
-            src={imagePreview}
-            alt="Önizleme"
-            className="image-preview"
-          />
+          <img src={imagePreview} alt="Önizleme" className="image-preview" />
         ) : null}
       </section>
 
@@ -266,6 +291,7 @@ export default function HomePage() {
       <p className={`progress${error ? " error" : ""}`}>
         {error || progress || "\u00a0"}
       </p>
+      {derivedNote ? <p className="derived-note">{derivedNote}</p> : null}
 
       {batchMeta && batchMeta.usernameCount > 1 ? (
         <p className="batch-summary">

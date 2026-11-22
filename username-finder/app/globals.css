@@ -400,6 +400,12 @@ header .lead {
   margin-bottom: 8px;
 }
 
+.derived-note {
+  font-size: 0.88rem;
+  color: #d4c76d;
+  margin: -8px 0 12px;
+}
+
 .person-form {
   margin-top: 22px;
   padding: 16px 18px;

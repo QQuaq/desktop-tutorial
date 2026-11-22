@@ -128,6 +128,9 @@ export interface WebSearchPayload {
 export interface SearchResponse {
   username: string;
   mode: SearchMode;
+  /** Bu sonuç ad/soyaddan otomatik üretilen nick ile arandı */
+  generatedFromName?: boolean;
+  derivedFromName?: string[];
   person?: PersonHintsInput;
   platforms: PlatformResult[];
   webSearch: WebSearchPayload;
@@ -145,6 +148,8 @@ export interface SearchResponse {
 export interface BatchSearchResponse {
   batch: true;
   person?: PersonHintsInput;
+  /** Ad/soyaddan otomatik üretilen takma adlar */
+  derivedFromName?: string[];
   items: SearchResponse[];
   meta: {
     usernameCount: number;

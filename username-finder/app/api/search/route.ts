@@ -1,5 +1,5 @@
-import { parseUsernameList } from "@/lib/check-profile";
 import { parsePersonHints } from "@/lib/profile-hints";
+import { resolveSearchUsernames } from "@/lib/username-derive";
 import {
   personFromBody,
   runUsernameSearch,
@@ -28,10 +28,19 @@ export async function POST(request: Request) {
     return jsonError("Geçersiz JSON.", 400);
   }
 
-  const parsed = parseUsernameList(body.username, body.usernames);
-  if (!parsed.ok) return jsonError(parsed.error, 400);
-
   const person = personFromBody(body.person);
+
+  const rawList: string[] = [];
+  if (Array.isArray(body.usernames)) {
+    for (const item of body.usernames) {
+      if (typeof item === "string" && item.trim()) rawList.push(item.trim());
+    }
+  } else if (typeof body.username === "string" && body.username.trim()) {
+    rawList.push(body.username.trim());
+  }
+
+  const resolved = resolveSearchUsernames(rawList, person);
+  if (!resolved.ok) return jsonError(resolved.error, 400);
   const parsedHints = person ? parsePersonHints(person) : null;
   const mode: SearchMode =
     body.mode === "quick" && !parsedHints ? "quick" : "full";
@@ -39,19 +48,32 @@ export async function POST(request: Request) {
   const batchStarted = Date.now();
   const items: SearchResponse[] = [];
 
-  for (const name of parsed.names) {
-    items.push(
-      await runUsernameSearch(name, parsedHints, person, mode)
-    );
+  for (const name of resolved.names) {
+    const result = await runUsernameSearch(name, parsedHints, person, mode);
+    items.push({
+      ...result,
+      generatedFromName: resolved.derivedFromName.includes(name),
+    });
   }
 
   if (items.length === 1) {
-    return Response.json(items[0]);
+    const one = items[0];
+    return Response.json({
+      ...one,
+      derivedFromName:
+        resolved.derivedFromName.length > 0
+          ? resolved.derivedFromName
+          : undefined,
+    });
   }
 
   const payload: BatchSearchResponse = {
     batch: true,
     person,
+    derivedFromName:
+      resolved.derivedFromName.length > 0
+        ? resolved.derivedFromName
+        : undefined,
     items,
     meta: {
       usernameCount: items.length,

@@ -65,7 +65,20 @@ export function SearchResultBlock({
   return (
     <section className="nickname-block">
       <header className="nickname-header">
-        <h2 className="nickname-title">Takma ad: {data.username}</h2>
+        <h2 className="nickname-title">
+          {data.generatedFromName ? "Tahmini nick (ad/soyad): " : "Takma ad: "}
+          {data.username}
+        </h2>
+        {data.person?.firstName || data.person?.lastName ? (
+          <span className="platform-meta">
+            Kişi:{" "}
+            <strong>
+              {[data.person.firstName, data.person.lastName]
+                .filter(Boolean)
+                .join(" ")}
+            </strong>
+          </span>
+        ) : null}
         <span className="platform-meta">
           {data.meta.foundCount} profil ·{" "}
           {data.meta.strongIdentityMatchCount > 0
