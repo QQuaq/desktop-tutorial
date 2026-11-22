@@ -17,11 +17,14 @@ import type {
 
 const MAX_BODY_BYTES = 32_000;
 
+export const maxDuration = 120;
+
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
 }
 
 export async function POST(request: Request) {
+  try {
   const auth = await requireSignedInViewer(request);
   if (!auth.ok) return auth.response;
 
@@ -63,15 +66,15 @@ export async function POST(request: Request) {
     body.mode === "quick" && !parsedHints ? "quick" : "full";
 
   const batchStarted = Date.now();
-  const items: SearchResponse[] = [];
-
-  for (const name of resolved.names) {
-    const result = await runUsernameSearch(name, parsedHints, person, mode);
-    items.push({
-      ...result,
-      generatedFromName: resolved.derivedFromName.includes(name),
-    });
-  }
+  const items: SearchResponse[] = await Promise.all(
+    resolved.names.map(async (name) => {
+      const result = await runUsernameSearch(name, parsedHints, person, mode);
+      return {
+        ...result,
+        generatedFromName: resolved.derivedFromName.includes(name),
+      };
+    })
+  );
 
   if (items.length === 1) {
     const one = items[0];
@@ -104,4 +107,10 @@ export async function POST(request: Request) {
   };
 
   return Response.json(payload);
+  } catch {
+    return jsonError(
+      "Arama sırasında sunucu hatası. Kısa süre sonra tekrar deneyin.",
+      500
+    );
+  }
 }
