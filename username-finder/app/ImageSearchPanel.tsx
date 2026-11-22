@@ -75,9 +75,10 @@ export function ImageSearchPanel() {
     <section className="image-search-panel" aria-labelledby="img-search-heading">
       <h2 id="img-search-heading">Resimle detaylı arama</h2>
       <p className="person-hint">
-        Fotoğraf yükleyin; Yandex, Bing ve (varsa API anahtarı ile) Google Lens
-        üzerinden tersine arama yapılır. <strong>Yardımcı AI</strong> sonuçları
-        özetler: hangi sitede benzer görsel bulunduğu satır satır yazılır.
+        Fotoğraf yükleyin; <strong>yüz tanıma</strong> (yüz algılama + kimlik
+        vektörü) ve Yandex/Bing/Google Lens tersine arama birlikte çalışır.{" "}
+        <strong>Yardımcı AI</strong> hangi sitede aynı veya benzer yüz
+        bulunduğunu özetler.
       </p>
 
       <input
@@ -97,13 +98,26 @@ export function ImageSearchPanel() {
         disabled={loading || !file}
         onClick={() => void runImageSearch()}
       >
-        {loading ? "Görsel taranıyor…" : "Sadece resimle ara"}
+        {loading ? "Yüz + görsel taranıyor…" : "Resimle ara (yüz tanıma)"}
       </button>
 
       {error ? <p className="progress error">{error}</p> : null}
 
       {data ? (
         <>
+          <div className="face-status" role="status">
+            {data.face.detected ? (
+              <p>
+                <strong>Yüz tanındı</strong> — {data.face.faceCount} yüz
+                {data.face.note ? ` · ${data.face.note}` : ""}
+              </p>
+            ) : (
+              <p className="progress">
+                {data.face.note ?? "Yüz algılanamadı."}
+              </p>
+            )}
+          </div>
+
           <article className="assistant-card">
             <h3>Yardımcı AI özeti</h3>
             <p className="assistant-headline">{data.assistant.headline}</p>
@@ -158,6 +172,22 @@ export function ImageSearchPanel() {
                     <span className="chip-confidence">
                       güven %{h.confidence}
                     </span>
+                    {h.faceMatch ? (
+                      <span
+                        className={
+                          h.faceMatch.verdict === "aynı_kişi_olası"
+                            ? "chip-face strong"
+                            : "chip-face"
+                        }
+                      >
+                        yüz %{h.faceMatch.similarity} —{" "}
+                        {h.faceMatch.verdict === "aynı_kişi_olası"
+                          ? "aynı kişi olası"
+                          : h.faceMatch.verdict === "benzer_yüz"
+                            ? "benzer yüz"
+                            : "farklı yüz"}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="hit-line">
                     {h.engine}: bu sitede eşleşme —{" "}

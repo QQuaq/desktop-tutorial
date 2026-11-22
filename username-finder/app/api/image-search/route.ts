@@ -1,10 +1,11 @@
 import { buildImageAssistantReport } from "@/lib/image-assistant";
+import { enrichHitsWithFaceMatch, scanFacesInBuffer } from "@/lib/face-recognition";
 import { readImageMeta } from "@/lib/image-meta";
 import { validateImagePayload, MAX_IMAGE_BYTES } from "@/lib/image-search";
 import { runReverseImageSearch } from "@/lib/reverse-image";
 import type { ImageSearchResponse } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function jsonError(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -37,13 +38,18 @@ export async function POST(request: Request) {
     file instanceof File && file.name ? file.name : `upload.${mimeType.split("/")[1] || "jpg"}`;
 
   const meta = readImageMeta(buffer, mimeType);
-  const { hits, engineNotes, tempImageUrl } = await runReverseImageSearch(
-    buffer,
-    name,
-    mimeType
-  );
+  const [faceScan, reverse] = await Promise.all([
+    scanFacesInBuffer(buffer),
+    runReverseImageSearch(buffer, name, mimeType),
+  ]);
+  const { hits, engineNotes, tempImageUrl } = reverse;
+  const face = faceScan.analysis;
 
-  const assistant = buildImageAssistantReport(hits, meta, engineNotes);
+  if (faceScan.descriptor) {
+    await enrichHitsWithFaceMatch(faceScan.descriptor, hits);
+  }
+
+  const assistant = buildImageAssistantReport(hits, meta, engineNotes, face);
 
   const payload: ImageSearchResponse = {
     meta,
@@ -51,6 +57,7 @@ export async function POST(request: Request) {
     assistant,
     engineNotes,
     tempImageUrl,
+    face,
     elapsedMs: Date.now() - started,
   };
 

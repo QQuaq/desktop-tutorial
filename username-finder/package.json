@@ -9,10 +9,14 @@
     "start:lan": "next start -H 0.0.0.0 -p 3457"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
     "image-size": "^1.2.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
