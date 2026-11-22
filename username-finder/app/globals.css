@@ -686,6 +686,26 @@ header .lead {
   color: #7dffb0;
 }
 
+.privacy-consent {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: #c8d4e8;
+}
+
+.privacy-consent input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.privacy-footer {
+  font-size: 0.8rem;
+  color: #9aaccc;
+}
+
 .face-status {
   margin: 0.75rem 0 0;
   padding: 0.65rem 0.85rem;

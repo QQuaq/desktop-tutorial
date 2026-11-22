@@ -67,7 +67,7 @@ export function buildImageAssistantReport(
 
   const summary =
     hits.length === 0
-      ? "Yandex, Bing ve (varsa) Google Lens taramasında güvenilir eşleşme çıkmadı. Farklı bir fotoğraf, daha yüksek çözünürlük veya yüzün net göründüğü bir kare deneyin."
+      ? "Yandex ve Bing taramasında güvenilir eşleşme çıkmadı. Farklı bir fotoğraf, daha yüksek çözünürlük veya yüzün net göründüğü bir kare deneyin."
       : `Yüklediğiniz görsel (${meta.width ?? "?"}×${meta.height ?? "?"} px) için ${hits.length} sonuç toplandı.${
           face.detected
             ? ` Yüz tanıma: ${face.faceCount} yüz algılandı; bulunan küçük resimlerdeki yüzler karşılaştırıldı.`

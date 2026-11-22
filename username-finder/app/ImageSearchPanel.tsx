@@ -16,6 +16,7 @@ export function ImageSearchPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<ImageSearchResponse | null>(null);
+  const [privacyOk, setPrivacyOk] = useState(false);
 
   const onFile = (f: File | null) => {
     setFile(f);
@@ -41,12 +42,17 @@ export function ImageSearchPanel() {
       setError("Önce bir fotoğraf seçin.");
       return;
     }
+    if (!privacyOk) {
+      setError("Devam etmek için gizlilik onayını işaretleyin.");
+      return;
+    }
     setLoading(true);
     setError("");
     setData(null);
     try {
       const body = new FormData();
       body.append("image", file);
+      body.append("privacyConsent", "yes");
       const res = await fetch("/api/image-search", {
         method: "POST",
         body,
@@ -69,17 +75,29 @@ export function ImageSearchPanel() {
     } finally {
       setLoading(false);
     }
-  }, [file]);
+  }, [file, privacyOk]);
 
   return (
     <section className="image-search-panel" aria-labelledby="img-search-heading">
       <h2 id="img-search-heading">Resimle detaylı arama</h2>
       <p className="person-hint">
-        Fotoğraf yükleyin; <strong>yüz tanıma</strong> (yüz algılama + kimlik
-        vektörü) ve Yandex/Bing/Google Lens tersine arama birlikte çalışır.{" "}
-        <strong>Yardımcı AI</strong> hangi sitede aynı veya benzer yüz
-        bulunduğunu özetler.
+        Fotoğraf yükleyin; <strong>yüz tanıma</strong> ve Yandex/Bing tersine
+        arama birlikte çalışır. Fotoğraf <strong>bu sunucuda saklanmaz</strong>;
+        onayınızla yalnızca arama motorlarına gönderilir (dosya adı
+        anonimleştirilir).
       </p>
+
+      <label className="privacy-consent">
+        <input
+          type="checkbox"
+          checked={privacyOk}
+          disabled={loading}
+          onChange={(e) => setPrivacyOk(e.target.checked)}
+        />
+        Fotoğrafımın Yandex ve Bing görsel aramasına gönderilmesini ve
+        bulunan sonuç küçük resimlerinde yüz karşılaştırması yapılmasını
+        kabul ediyorum. Üçüncü taraf sitelere veri aktarımı olabilir.
+      </label>
 
       <input
         type="file"
@@ -95,7 +113,7 @@ export function ImageSearchPanel() {
       <button
         type="button"
         className="btn-primary image-search-btn"
-        disabled={loading || !file}
+        disabled={loading || !file || !privacyOk}
         onClick={() => void runImageSearch()}
       >
         {loading ? "Yüz + görsel taranıyor…" : "Resimle ara (yüz tanıma)"}
@@ -201,11 +219,8 @@ export function ImageSearchPanel() {
             </ul>
           )}
 
-          <p className="ddg-note">
-            Süre: {(data.elapsedMs / 1000).toFixed(1)} sn
-            {data.tempImageUrl
-              ? " · geçici görsel URL ile tarandı"
-              : ""}
+          <p className="ddg-note privacy-footer">
+            {data.privacyNotice} Süre: {(data.elapsedMs / 1000).toFixed(1)} sn.
           </p>
         </>
       ) : null}

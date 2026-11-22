@@ -3,10 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 3457",
-    "dev:lan": "next dev -H 0.0.0.0 -p 3457",
     "build": "next build",
-    "start": "next start -H 127.0.0.1 -p 3457",
-    "start:lan": "next start -H 0.0.0.0 -p 3457"
+    "start": "next start -H 127.0.0.1 -p 3457"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
