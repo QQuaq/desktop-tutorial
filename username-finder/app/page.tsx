@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ImageSearchPanel } from "./ImageSearchPanel";
 import { SearchResultBlock } from "./SearchResultBlock";
+import { errorMessageFromBody, readApiResponse } from "@/lib/client-api";
 import type {
   BatchSearchResponse,
   PersonHintsInput,
@@ -76,6 +77,7 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/search", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           usernames: names,
@@ -83,16 +85,9 @@ export default function HomePage() {
           person: hasPersonHints ? personPayload : undefined,
         }),
       });
-      const json: unknown = await res.json();
+      const json: unknown = await readApiResponse(res);
       if (!res.ok) {
-        const errMsg =
-          json &&
-          typeof json === "object" &&
-          "error" in json &&
-          typeof (json as { error?: unknown }).error === "string"
-            ? (json as { error: string }).error
-            : "Arama başarısız.";
-        setError(errMsg);
+        setError(errorMessageFromBody(json, "Arama başarısız."));
         setProgress("");
         return;
       }
@@ -135,8 +130,10 @@ export default function HomePage() {
           `${single.meta.foundCount} profil · ${(single.meta.elapsedMs / 1000).toFixed(1)} sn`
         );
       }
-    } catch {
-      setError("Sunucuya bağlanılamadı.");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Sunucuya bağlanılamadı."
+      );
       setProgress("");
     } finally {
       setLoading(false);

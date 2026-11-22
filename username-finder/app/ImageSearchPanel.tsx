@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { errorMessageFromBody, readApiResponse } from "@/lib/client-api";
 import type { ImageHit, ImageSearchResponse } from "@/lib/types";
 
 const KIND_LABEL: Record<ImageHit["matchKind"], string> = {
@@ -55,23 +56,19 @@ export function ImageSearchPanel() {
       body.append("privacyConsent", "yes");
       const res = await fetch("/api/image-search", {
         method: "POST",
+        credentials: "include",
         body,
       });
-      const json: unknown = await res.json();
+      const json: unknown = await readApiResponse(res);
       if (!res.ok) {
-        const msg =
-          json &&
-          typeof json === "object" &&
-          "error" in json &&
-          typeof (json as { error?: unknown }).error === "string"
-            ? (json as { error: string }).error
-            : "Resim araması başarısız.";
-        setError(msg);
+        setError(errorMessageFromBody(json, "Resim araması başarısız."));
         return;
       }
       setData(json as ImageSearchResponse);
-    } catch {
-      setError("Sunucuya bağlanılamadı.");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Sunucuya bağlanılamadı."
+      );
     } finally {
       setLoading(false);
     }

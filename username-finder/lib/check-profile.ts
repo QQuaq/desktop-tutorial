@@ -5,8 +5,8 @@ import {
 } from "./profile-hints";
 import type { CheckStatus, PlatformDef, PlatformResult } from "./types";
 
-export const PER_SITE_TIMEOUT_MS = 8000;
-export const CONCURRENCY_LIMIT = 10;
+export const PER_SITE_TIMEOUT_MS = 5500;
+export const CONCURRENCY_LIMIT = 12;
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; UsernameFinder/1.0; +https://github.com/desktop-tutorial)";
