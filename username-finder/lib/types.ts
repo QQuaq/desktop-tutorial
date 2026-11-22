@@ -1,0 +1,77 @@
+export type PlatformCategory =
+  | "sosyal"
+  | "forum"
+  | "oyun"
+  | "kod"
+  | "medya"
+  | "blog"
+  | "mesajlaşma"
+  | "profesyonel";
+
+export type CheckStatus = "found" | "not_found" | "unknown" | "error";
+
+export type SearchMode = "quick" | "full";
+
+export interface PlatformDef {
+  id: string;
+  name: string;
+  category: PlatformCategory;
+  /** Şablonda {username} kullanın. */
+  urlTemplate: string;
+  method: "HEAD" | "GET";
+  /** Bu HTTP kodlarından biri → olası bulundu. */
+  foundStatus: number[];
+  /** Bu kodlardan biri → bulunamadı. */
+  notFoundStatus?: number[];
+  /** GET gövdesinde bunlardan biri varsa → bulunamadı (soft 404). */
+  forbiddenBodySubstrings?: string[];
+  /** Hızlı modda dahil et. */
+  quick: boolean;
+}
+
+export interface PlatformResult {
+  platformId: string;
+  name: string;
+  category: PlatformCategory;
+  url: string;
+  status: CheckStatus;
+  httpStatus?: number;
+  responseTimeMs: number;
+  error?: string;
+}
+
+export interface WebSearchLink {
+  engine: string;
+  label: string;
+  url: string;
+}
+
+export interface SuggestedQuery {
+  label: string;
+  url: string;
+}
+
+export interface DuckDuckGoResult {
+  title: string;
+  url: string;
+  snippet?: string;
+}
+
+export interface WebSearchPayload {
+  links: WebSearchLink[];
+  suggestedQueries: SuggestedQuery[];
+  duckDuckGoResults?: DuckDuckGoResult[];
+  duckDuckGoNote?: string;
+}
+
+export interface SearchResponse {
+  username: string;
+  mode: SearchMode;
+  platforms: PlatformResult[];
+  webSearch: WebSearchPayload;
+  meta: {
+    checkedCount: number;
+    foundCount: number;
+    elapsedMs: number;
+  };
+}
