@@ -174,6 +174,22 @@ export type ImageMatchKind =
   | "ilgili_sayfa"
   | "bilinmiyor";
 
+export type FaceVerdict = "aynı_kişi_olası" | "benzer_yüz" | "farklı" | "yüz_yok";
+
+export interface FaceMatchInsight {
+  similarity: number;
+  distance: number;
+  verdict: FaceVerdict;
+}
+
+export interface FaceAnalysis {
+  detected: boolean;
+  faceCount: number;
+  modelReady: boolean;
+  primaryBox?: { x: number; y: number; width: number; height: number };
+  note?: string;
+}
+
 export interface ImageHit {
   engine: string;
   domain: string;
@@ -184,6 +200,7 @@ export interface ImageHit {
   matchKind: ImageMatchKind;
   confidence: number;
   snippet?: string;
+  faceMatch?: FaceMatchInsight;
 }
 
 export interface AssistantReport {
@@ -201,5 +218,6 @@ export interface ImageSearchResponse {
   assistant: AssistantReport;
   engineNotes: string[];
   tempImageUrl?: string;
+  face: FaceAnalysis;
   elapsedMs: number;
 }
